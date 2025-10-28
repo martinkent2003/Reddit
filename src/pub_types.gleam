@@ -3,32 +3,33 @@ import gleam/option.{type Option}
 import gleam/dict.{type Dict}
 
 
-pub type User {
+pub type User{
     User(
-        user_id: Int,
-        username: String,
-        userkarma: Int
+        user_id: String,
+        userkarma: Int,
+        user_subject: Subject(ClientMessage)
     )
 }
 
 pub type Comment{
     Comment(
-        comment_id: Int,
-        parent_id: Int,
+        comment_id: String,
+        parent_id: String,
         //have some way of determining if the parent (where the comment was placed) is a comment or post
         comment_content: String,
         comments: List(Comment),
     )
 }
 
-pub type Posts {
+pub type Post{
     Post(
-        post_id: Int,
+        post_id: String,
+        //passed by the user----
+        user_id: String,
         subreddit_id: String,
-
         post_content: String,
-
-        comments: List(Comment),
+        //                  ----
+        comments: List(String),//storing comment Id's instead of actual comment
         upvotes: Int,
         downvotes: Int
     )
@@ -36,10 +37,9 @@ pub type Posts {
 
 pub type Subreddit{
     Subreddit(
-        subreddit_id: String,
-        members: List(Int), //determine best data structure later
-        posts: List(Posts)
-
+        sr_id: String,
+        members: List(String), //of userId's
+        posts: List(String)//of postId's
     )
 }
 
@@ -49,25 +49,30 @@ pub type ClientMessage{
 }
 
 pub type EngineMessage{
-    RegisterAccount(user_id: Int, requester: Subject(ClientMessage))
+    RegisterAccount(user_id: String, requester: Subject(ClientMessage))
 
     //SubReddit needs an identifier reddit.com/subreddit
-    CreateSubReddit(subrid: String, requester: Subject(ClientMessage))
-    JoinSubreddit(subrid: String, requester: Subject(ClientMessage))
-    LeaveSubreddit(subrid: String, requester: Subject(ClientMessage))
+    CreateSubReddit(sr_id: String, requester: Subject(ClientMessage))
+    Subscribe(sr_id: String, action: String, requester: Subject(ClientMessage))
+    //LeaveSubreddit(sr_id: String, requester: Subject(ClientMessage))
 
     //Posts
-    PostInSubReddit(subrid: String, postid: String,  post_text: String)
+    PostInSubReddit(sr_id: String, post_id: String,  post_text: String)
 
     //Comment
-    CommentInSubReddit(subrid: String, parentid: String)
+    CommentInSubReddit(sr_id: String, parent_id: String)
 
-    //Upvote/Downvote
-    Upvote(subrid: Int)
-    Downvote(subrid: Int) 
-    RequestKarm(user_id: Int, requester: Subject(ClientMessage))
+    //Upvote/Downvote(on comment or post)
+    Upvote(parent_id: String)
+    Downvote(parent_id: String) 
+    RequestKarma(user_id: String, requester: Subject(ClientMessage))
 
     //Feed
-    RequestFeed(user_id: Int, requester: Subject(ClientMessage))
+    RequestFeed(user_id: String, requester: Subject(ClientMessage))
+
+    //Messages
+    SendMessage(from_user_id: String, to_user_id: String, message: String)
+
+    GetInbox(user_id: String, requester: Subject(ClientMessage))
     
 }

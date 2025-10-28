@@ -25,10 +25,7 @@ pub fn start_simulator(
     |> actor.start
 }
 
-fn handle_message_simulator(
-  state: SimulatorState,
-  message: String,
-) -> actor.Next(SimulatorState, String) {
+fn handle_message_simulator(state: SimulatorState, message: String) -> actor.Next(SimulatorState, String) {
   case message {
     _ -> {
       process.send(state.engine_subject, "Weiner")
