@@ -3,6 +3,7 @@ import engine
 import gleam/erlang/process
 import gleam/int
 import gleam/io
+import pub_types.{type EngineMessage}
 import simulator
 
 pub fn main() -> Nil {
@@ -29,7 +30,7 @@ pub fn main() -> Nil {
 
 fn run_simulation(
   main_process: process.Subject(String),
-  engine: process.Subject(String),
+  engine: process.Subject(EngineMessage),
   num_clients: Int,
 ) {
   io.println(
