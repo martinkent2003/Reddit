@@ -40,6 +40,7 @@ fn handle_message_engine(
             let new_user = User( user_id, 0, requester)
             let updated = dict.insert(state.users, user_id, new_user)
             let new_state = EngineState(..state, users: updated)
+            io.println("User: " <> user_id <> " initialized")
             actor.continue(new_state)
         }
         CreateSubReddit(sr_id, _requester)->{

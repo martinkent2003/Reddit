@@ -4,13 +4,13 @@ import gleam/erlang/process.{type Subject}
 import gleam/int
 import gleam/io
 import gleam/otp/actor
-import pub_types.{type ClientMessage, type EngineMessage}
+import pub_types.{type ClientMessage, type EngineMessage, type SimulatorMessage, StartSimulator}
 
 pub type SimulatorState {
   SimulatorState(
     main_process: Subject(String),
     engine_subject: Subject(EngineMessage),
-    self_subject: Subject(String),
+    self_subject: Subject(SimulatorMessage),
     num_clients: Int,
     clients: Dict(Int, Subject(ClientMessage)),
   )
@@ -23,7 +23,7 @@ pub fn start_simulator(
 ) {
   let _ =
     actor.new_with_initialiser(1000, fn(self_subject) {
-      process.send(self_subject, "")
+      process.send(self_subject, StartSimulator)
       let state =
         SimulatorState(
           main_process,
@@ -39,9 +39,9 @@ pub fn start_simulator(
     |> actor.start
 }
 
-fn handle_message_simulator(state: SimulatorState, message: String) -> actor.Next(SimulatorState, String) {
+fn handle_message_simulator(state: SimulatorState, message: SimulatorMessage) -> actor.Next(SimulatorState, SimulatorMessage) {
   case message {
-    _ -> {
+    StartSimulator-> {
       let new_state = spawn_clients(state, 1)
       actor.continue(new_state)
     }

@@ -43,6 +43,10 @@ pub type Subreddit{
     )
 }
 
+pub type SimulatorMessage{
+    StartSimulator()
+}
+
 pub type ClientMessage{
     Shutdown
     RegisterAccountAck()

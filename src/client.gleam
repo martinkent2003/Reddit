@@ -1,11 +1,11 @@
 import gleam/erlang/process
 import gleam/io
 import gleam/otp/actor
-import pub_types.{type ClientMessage, type EngineMessage, RegisterAccount}
+import pub_types.{type ClientMessage, type EngineMessage, type SimulatorMessage, RegisterAccount}
 
 pub type ClientState {
   ClientState(
-    simulator_subject: process.Subject(String),
+    simulator_subject: process.Subject(SimulatorMessage),
     engine_subject: process.Subject(EngineMessage),
     self_subject: process.Subject(ClientMessage),
     user_id: String,
@@ -13,7 +13,7 @@ pub type ClientState {
 }
 
 pub fn start_client(
-  simulator_subject: process.Subject(String),
+  simulator_subject: process.Subject(SimulatorMessage),
   engine_subject: process.Subject(EngineMessage),
   user_id: String,
 ) {
