@@ -29,7 +29,7 @@ pub type Post{
         subreddit_id: String,
         post_content: String,
         //                  ----
-        comments: List(String),//storing comment Id's instead of actual comment
+        comments: List(Comment),//storing comment Id's instead of actual comment
         upvotes: Int,
         downvotes: Int
     )
@@ -57,14 +57,14 @@ pub type EngineMessage{
 
     //SubReddit needs an identifier reddit.com/subreddit
     CreateSubReddit(sr_id: String, requester: Subject(ClientMessage))
-    Subscribe(sr_id: String, action: String, requester: Subject(ClientMessage))
-    //LeaveSubreddit(sr_id: String, requester: Subject(ClientMessage))
+    JoinSubreddit(user_id: String, sr_id: String, requester: Subject(ClientMessage))
+    LeaveSubreddit(user_id: String, sr_id: String, requester: Subject(ClientMessage))
 
     //Posts
-    PostInSubReddit(sr_id: String, post_id: String,  post_text: String)
-
+    PostInSubReddit(user_id: String, sr_id: String, post_text: String)
+ 
     //Comment
-    CommentInSubReddit(sr_id: String, parent_id: String)
+    CommentInSubReddit(sr_id: String, parent_id: String, comment_message: String)
 
     //Upvote/Downvote(on comment or post)
     Upvote(parent_id: String)
