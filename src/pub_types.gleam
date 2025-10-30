@@ -10,9 +10,12 @@ pub type Comment {
   Comment(
     comment_id: String,
     parent_id: String,
+    user_id: String,
     //have some way of determining if the parent (where the comment was placed) is a comment or post
     comment_content: String,
-    comments: List(Comment),
+    comments: List(String),
+    upvotes: Int,
+    downvotes: Int,
   )
 }
 
@@ -24,7 +27,7 @@ pub type Post {
     subreddit_id: String,
     post_content: String,
     //                  ----
-    comments: List(Comment),
+    comments: List(String),
     //storing comment Id's instead of actual comment
     upvotes: Int,
     downvotes: Int,
@@ -49,7 +52,6 @@ pub type ClientMessage {
   Connect
   Shutdown
   RegisterAccountAck
-
   ReceiveFeed(post: Post)
 }
 
@@ -73,7 +75,7 @@ pub type EngineMessage {
   PostInSubReddit(user_id: String, sr_id: String, post_text: String)
 
   //Comment
-  CommentInSubReddit(parent_id: String, comment_message: String)
+  CommentInSubReddit(parent_id: String, user_id: String, comment_message: String)
 
   //Upvote/Downvote(on comment or post)
   Upvote(parent_id: String)

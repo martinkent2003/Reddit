@@ -4,7 +4,7 @@ import gleam/otp/actor
 import pub_types.{
   type ClientMessage, type EngineMessage, type SimulatorMessage,
   CommentInSubReddit, Connect, CreateSubReddit, PostInSubReddit, ReceiveFeed,
-  RegisterAccount, RequestFeed,
+  RegisterAccount, RequestFeed, Upvote, Downvote, RequestKarma
 }
 
 pub type ClientState {
@@ -66,17 +66,38 @@ fn test_functions(state: ClientState) {
   process.sleep(20)
   process.send(
     state.engine_subject,
-    CommentInSubReddit("post0", "First comment ever"),
+    CommentInSubReddit("post0", state.user_id, "First comment ever"),
   )
   process.send(
     state.engine_subject,
-    CommentInSubReddit("post0", "Second comment ever"),
+    CommentInSubReddit("post0", state.user_id, "Second comment ever"),
   )
   process.sleep(20)
   process.send(
     state.engine_subject,
-    CommentInSubReddit("comment0", "Replying to the first comment ever"),
+    CommentInSubReddit("comment0", state.user_id, "Replying to the first comment ever"),
   )
+  process.sleep(20)
+  process.send(
+    state.engine_subject,
+    Upvote("comment0")
+  )
+  process.sleep(20)
+  process.send(
+    state.engine_subject,
+    Upvote("post0")
+  )
+  process.send(
+    state.engine_subject,
+    Downvote("comment1")
+  )
+  process.sleep(20)
+  process.send(
+    state.engine_subject,
+    RequestKarma(state.user_id, state.self_subject)
+  )
+
+
   process.sleep(20)
   process.send(
     state.engine_subject,
