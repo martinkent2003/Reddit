@@ -166,6 +166,7 @@ fn handle_message_engine(
       // Temporarily gives only one post
       let assert Ok(post) = dict.get(state.posts, "post0")
       process.send(requester, pub_types.ReceiveFeed(post))
+      io.println(string.inspect(dict.to_list(state.posts)))
       io.println(string.inspect(dict.to_list(state.comments)))
       actor.continue(state)
     }

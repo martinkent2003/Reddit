@@ -6,11 +6,8 @@ import gleam/string
 import pub_types.{
   type ClientMessage, type EngineMessage, type SimulatorMessage,
   CommentInSubReddit, Connect, CreateSubReddit, PostInSubReddit, ReceiveFeed,
-  RegisterAccount, RequestFeed, Upvote, Downvote, RequestKarma
-  type ClientMessage, type Comment, type EngineMessage, type Post,
-  type SimulatorMessage, ClientJoinSubreddit, CommentInSubReddit, Connect,
-  CreateSubReddit, JoinSubreddit, PostInSubReddit, ReceiveFeed, RegisterAccount,
-  RequestFeed,
+  RegisterAccount, RequestFeed, Upvote, Downvote, RequestKarma,
+  type Comment, type Post, ClientJoinSubreddit, JoinSubreddit
 }
 
 pub type ClientState {
@@ -49,7 +46,7 @@ fn handle_message_client(
       actor.continue(state)
     }
     ReceiveFeed(post) -> {
-      print_post(post)
+      //print_post(post)
       actor.continue(state)
     }
     ClientJoinSubreddit(sr_ids) -> {
@@ -120,18 +117,17 @@ fn test_functions(state: ClientState) {
   )
 }
 
-pub fn print_post(post: Post) {
-  io.println("-> " <> post.post_id <> ": " <> post.post_content)
-  print_comments(post.comments, 1)
-}
+// pub fn print_post(post: Post) {
+//   io.println("-> " <> post.post_id <> ": " <> post.post_content)
+// }
 
-fn print_comments(comments: List(Comment), depth: Int) {
-  list.each(comments, fn(comment) {
-    let indent = string.repeat("    ", depth)
-    // 4 spaces per depth
-    io.println(
-      indent <> "-> " <> comment.comment_id <> ": " <> comment.comment_content,
-    )
-    print_comments(comment.comments, depth + 1)
-  })
-}
+// fn print_comments(comments: List(Comment), depth: Int) {
+//   list.each(comments, fn(comment) {
+//     let indent = string.repeat("    ", depth)
+//     // 4 spaces per depth
+//     io.println(
+//       indent <> "-> " <> comment.comment_id <> ": " <> comment.comment_content,
+//     )
+//     print_comments(comment.comments, depth + 1)
+//   })
+// }
