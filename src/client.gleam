@@ -1,10 +1,13 @@
 import gleam/erlang/process
 import gleam/io
+import gleam/list
 import gleam/otp/actor
+import gleam/string
 import pub_types.{
-  type ClientMessage, type EngineMessage, type SimulatorMessage,
-  CommentInSubReddit, Connect, CreateSubReddit, PostInSubReddit, ReceiveFeed,
-  RegisterAccount, RequestFeed,
+  type ClientMessage, type Comment, type EngineMessage, type Post,
+  type SimulatorMessage, ClientJoinSubreddit, CommentInSubReddit, Connect,
+  CreateSubReddit, JoinSubreddit, PostInSubReddit, ReceiveFeed, RegisterAccount,
+  RequestFeed,
 }
 
 pub type ClientState {
@@ -43,7 +46,16 @@ fn handle_message_client(
       actor.continue(state)
     }
     ReceiveFeed(post) -> {
-      echo post
+      print_post(post)
+      actor.continue(state)
+    }
+    ClientJoinSubreddit(sr_ids) -> {
+      list.each(sr_ids, fn(sr_id) {
+        process.send(
+          state.engine_subject,
+          JoinSubreddit(state.user_id, sr_id, state.self_subject),
+        )
+      })
       actor.continue(state)
     }
     _ -> {
@@ -82,4 +94,20 @@ fn test_functions(state: ClientState) {
     state.engine_subject,
     RequestFeed(state.user_id, state.self_subject),
   )
+}
+
+pub fn print_post(post: Post) {
+  io.println("-> " <> post.post_id <> ": " <> post.post_content)
+  print_comments(post.comments, 1)
+}
+
+fn print_comments(comments: List(Comment), depth: Int) {
+  list.each(comments, fn(comment) {
+    let indent = string.repeat("    ", depth)
+    // 4 spaces per depth
+    io.println(
+      indent <> "-> " <> comment.comment_id <> ": " <> comment.comment_content,
+    )
+    print_comments(comment.comments, depth + 1)
+  })
 }

@@ -50,6 +50,7 @@ pub type ClientMessage {
   Shutdown
   RegisterAccountAck
 
+  ClientJoinSubreddit(List(String))
   ReceiveFeed(post: Post)
 }
 
@@ -87,4 +88,6 @@ pub type EngineMessage {
   SendMessage(from_user_id: String, to_user_id: String, message: String)
 
   GetInbox(user_id: String, requester: Subject(ClientMessage))
+
+  PrintSubredditSizes
 }
