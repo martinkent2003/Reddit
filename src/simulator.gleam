@@ -4,7 +4,9 @@ import gleam/erlang/process.{type Subject}
 import gleam/int
 import gleam/io
 import gleam/otp/actor
-import pub_types.{type ClientMessage, type EngineMessage, type SimulatorMessage, StartSimulator}
+import pub_types.{
+  type ClientMessage, type EngineMessage, type SimulatorMessage, StartSimulator,
+}
 
 pub type SimulatorState {
   SimulatorState(
@@ -39,10 +41,15 @@ pub fn start_simulator(
     |> actor.start
 }
 
-fn handle_message_simulator(state: SimulatorState, message: SimulatorMessage) -> actor.Next(SimulatorState, SimulatorMessage) {
+fn handle_message_simulator(
+  state: SimulatorState,
+  message: SimulatorMessage,
+) -> actor.Next(SimulatorState, SimulatorMessage) {
   case message {
-    StartSimulator-> {
+    StartSimulator -> {
       let new_state = spawn_clients(state, 1)
+      let assert Ok(client1) = dict.get(new_state.clients, 1)
+      process.send(client1, pub_types.Connect)
       actor.continue(new_state)
     }
   }

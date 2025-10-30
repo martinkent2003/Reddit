@@ -1,7 +1,11 @@
 import gleam/erlang/process
 import gleam/io
 import gleam/otp/actor
-import pub_types.{type ClientMessage, type EngineMessage, type SimulatorMessage, RegisterAccount}
+import pub_types.{
+  type ClientMessage, type EngineMessage, type SimulatorMessage,
+  CommentInSubReddit, Connect, CreateSubReddit, PostInSubReddit, ReceiveFeed,
+  RegisterAccount, RequestFeed,
+}
 
 pub type ClientState {
   ClientState(
@@ -34,9 +38,48 @@ fn handle_message_client(
   message: ClientMessage,
 ) -> actor.Next(ClientState, ClientMessage) {
   case message {
+    Connect -> {
+      test_functions(state)
+      actor.continue(state)
+    }
+    ReceiveFeed(post) -> {
+      echo post
+      actor.continue(state)
+    }
     _ -> {
       io.println("Client " <> state.user_id <> " received unknown message")
       actor.continue(state)
     }
   }
+}
+
+fn test_functions(state: ClientState) {
+  process.send(
+    state.engine_subject,
+    CreateSubReddit("subreddit 1", state.self_subject),
+  )
+  process.sleep(200)
+  process.send(
+    state.engine_subject,
+    PostInSubReddit(state.user_id, "subreddit 1", "First post ever"),
+  )
+  process.sleep(20)
+  process.send(
+    state.engine_subject,
+    CommentInSubReddit("post0", "First comment ever"),
+  )
+  process.send(
+    state.engine_subject,
+    CommentInSubReddit("post0", "Second comment ever"),
+  )
+  process.sleep(20)
+  process.send(
+    state.engine_subject,
+    CommentInSubReddit("comment0", "Replying to the first comment ever"),
+  )
+  process.sleep(20)
+  process.send(
+    state.engine_subject,
+    RequestFeed(state.user_id, state.self_subject),
+  )
 }
