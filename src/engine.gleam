@@ -90,7 +90,6 @@ fn handle_message_engine(
             case exists{
                 Ok(subreddit) -> {
                     let new_members = list.filter(subreddit.members, fn(x) {x != user_id})
-                    let new_members = list.
                     let updated_subreddit = Subreddit(..subreddit, members:new_members)
                     let updated_subreddits = dict.insert(state.subreddits, sr_id, updated_subreddit)
                     let new_state = EngineState(..state, subreddits: updated_subreddits)
@@ -124,65 +123,15 @@ fn handle_message_engine(
                 }
             }
         }
-        CommentInSubReddit(sr_id, parent_id, comment_text)->{
-            let exists = dict.get(state.subreddits, sr_id)
+        CommentInSubReddit(parent_id, comment_text)->{
             let new_comment = Comment(
                 "comment"<>int.to_string(state.num_comments),
                 parent_id,
                 comment_text,
                 []
-
             )
-            case exists{
-                Ok(subreddit)-> {
-                    let is_post = string.starts_with(parent_id, "post")
-                    case is_post{
-                        True->{
-                            let post_exists = dict.get(state.posts, parent_id)
-                            case post_exists{
-                                Ok(post)->{
-                                    let new_comments = list.append(post.comments, [new_comment])
-                                    let new_post = Post(..post, comments: new_comments)
-                                    let updated_posts = dict.insert(state.posts, parent_id, new_post)
-                                    let new_state = EngineState(..state, posts: updated_posts)
-                                    actor.continue(new_state)
-                                }
-                                _->{
-                                    io.println(parent_id <> " does not exist in posts")
-                                    actor.continue(state)
-                                }
-                            }
-                            
-                        }
-                        False->{
-                            let comment_exists = dict.get(state.comments, parent_id)
-                            case comment_exists{
-                                Ok(comment)->{
-                                    let new_comments = list.append(comment.comments, [new_comment])
-                                    let new_comment = Comment(..comment, comments: new_comments)
-                                    //Update the post and shit here before finishing comment I want to change this asap
-                                    //now we have Posts -> List[Comment] : Comment -> List[Comment]
-                                    // we need to update the list of comments, the comment, (Recurse up the hierarchy, (theres gotta be a better solution))
-                                    //if we add a dict of comments:
-                                    //store comments 
-                                    let new_post = Post()
-                                    let update
-                                    let new_post = Post(..post)
-                                    let updated_comments = dict.insert(state.)
-                                }
-                                _ -> {
-
-                                }
-                            }
-                            actor.continue(state)
-                        }
-                    }
-                }
-                _-> {
-
-                }
-            }
-            actor.continue(state)
+            let new_state = update_comments_recursively(new_comment, state)
+            actor.continue(EngineState(..new_state, comments: dict.insert(new_state.comments, new_comment.comment_id, new_comment)))
         }
         Upvote(_parent_id)->{
             actor.continue(state)
@@ -205,6 +154,57 @@ fn handle_message_engine(
         _ -> {
             io.println("Type of Engine Message Not Found")
             actor.continue(state)
+        }
+    }
+}
+
+fn update_comments_recursively(new_comment: Comment, state: EngineState) -> EngineState {
+    let parent_is_post = string.starts_with(new_comment.parent_id, "post")
+    case parent_is_post{
+        True->{
+            let post_exists = dict.get(state.posts, new_comment.parent_id)
+            case post_exists{
+                Ok(post)->{
+                    let new_comments = list.append(post.comments, [new_comment])
+                    let new_post = Post(..post, comments: new_comments)
+                    let updated_posts = dict.insert(state.posts, new_comment.parent_id, new_post)
+
+                    // Update subreddit
+                    let subreddit_exists = dict.get(state.subreddits, post.subreddit_id)
+                    let updated_subreddits = case subreddit_exists {
+                        Ok(subreddit) -> {
+                            dict.insert(state.subreddits, post.subreddit_id, subreddit)
+                        }
+                        _ -> {
+                            state.subreddits
+                        }
+                    }
+
+                    let new_state = EngineState(..state, posts: updated_posts, subreddits: updated_subreddits)
+                    new_state
+                }
+                _->{
+                    io.println(new_comment.parent_id <> " does not exist in posts")
+                    state
+                }
+            }
+            
+        }
+        False->{
+            let comment_exists = dict.get(state.comments, new_comment.parent_id)
+            case comment_exists{
+                Ok(parent_comment)->{
+                    let new_comments = list.append(parent_comment.comments, [new_comment])
+                    let new_parent_comment = Comment(..parent_comment, comments: new_comments)
+                    let updated_comments = dict.insert(state.comments, new_comment.parent_id, new_parent_comment)
+
+                    let new_state = EngineState(..state, comments: updated_comments)
+                    update_comments_recursively(parent_comment, new_state)
+                }
+                _ -> {
+                    state
+                }
+            }
         }
     }
 }

@@ -64,7 +64,7 @@ pub type EngineMessage{
     PostInSubReddit(user_id: String, sr_id: String, post_text: String)
  
     //Comment
-    CommentInSubReddit(sr_id: String, parent_id: String, comment_message: String)
+    CommentInSubReddit(parent_id: String, comment_message: String)
 
     //Upvote/Downvote(on comment or post)
     Upvote(parent_id: String)
