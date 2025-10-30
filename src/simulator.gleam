@@ -67,7 +67,7 @@ fn handle_message_simulator(
       assign_subreddits(new_state, 1)
       process.sleep(100)
       process.send(new_state.engine_subject, pub_types.PrintSubredditSizes)
-      // process.send(client1, pub_types.Connect)
+      process.send(client1, pub_types.Connect)
       actor.continue(new_state)
     }
   }

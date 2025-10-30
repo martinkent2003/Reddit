@@ -4,10 +4,10 @@ import gleam/list
 import gleam/otp/actor
 import gleam/string
 import pub_types.{
-  type ClientMessage, type Comment, type EngineMessage, type Post,
-  type SimulatorMessage, ClientJoinSubreddit, CommentInSubReddit, Connect,
-  CreateSubReddit, JoinSubreddit, PostInSubReddit, ReceiveFeed, RegisterAccount,
-  RequestFeed,
+  type ClientMessage, type EngineMessage, type SimulatorMessage,
+  CommentInSubReddit, Connect, CreateSubReddit, PostInSubReddit, ReceiveFeed,
+  RegisterAccount, RequestFeed, Upvote, Downvote, RequestKarma,
+  type Comment, type Post, ClientJoinSubreddit, JoinSubreddit
 }
 
 pub type ClientState {
@@ -46,7 +46,7 @@ fn handle_message_client(
       actor.continue(state)
     }
     ReceiveFeed(post) -> {
-      print_post(post)
+      //print_post(post)
       actor.continue(state)
     }
     ClientJoinSubreddit(sr_ids) -> {
@@ -78,17 +78,38 @@ fn test_functions(state: ClientState) {
   process.sleep(20)
   process.send(
     state.engine_subject,
-    CommentInSubReddit("post0", "First comment ever"),
+    CommentInSubReddit("post0", state.user_id, "First comment ever"),
   )
   process.send(
     state.engine_subject,
-    CommentInSubReddit("post0", "Second comment ever"),
+    CommentInSubReddit("post0", state.user_id, "Second comment ever"),
   )
   process.sleep(20)
   process.send(
     state.engine_subject,
-    CommentInSubReddit("comment0", "Replying to the first comment ever"),
+    CommentInSubReddit("comment0", state.user_id, "Replying to the first comment ever"),
   )
+  process.sleep(20)
+  process.send(
+    state.engine_subject,
+    Upvote("comment0")
+  )
+  process.sleep(20)
+  process.send(
+    state.engine_subject,
+    Upvote("post0")
+  )
+  process.send(
+    state.engine_subject,
+    Downvote("comment1")
+  )
+  process.sleep(20)
+  process.send(
+    state.engine_subject,
+    RequestKarma(state.user_id, state.self_subject)
+  )
+
+
   process.sleep(20)
   process.send(
     state.engine_subject,
@@ -96,18 +117,17 @@ fn test_functions(state: ClientState) {
   )
 }
 
-pub fn print_post(post: Post) {
-  io.println("-> " <> post.post_id <> ": " <> post.post_content)
-  print_comments(post.comments, 1)
-}
+// pub fn print_post(post: Post) {
+//   io.println("-> " <> post.post_id <> ": " <> post.post_content)
+// }
 
-fn print_comments(comments: List(Comment), depth: Int) {
-  list.each(comments, fn(comment) {
-    let indent = string.repeat("    ", depth)
-    // 4 spaces per depth
-    io.println(
-      indent <> "-> " <> comment.comment_id <> ": " <> comment.comment_content,
-    )
-    print_comments(comment.comments, depth + 1)
-  })
-}
+// fn print_comments(comments: List(Comment), depth: Int) {
+//   list.each(comments, fn(comment) {
+//     let indent = string.repeat("    ", depth)
+//     // 4 spaces per depth
+//     io.println(
+//       indent <> "-> " <> comment.comment_id <> ": " <> comment.comment_content,
+//     )
+//     print_comments(comment.comments, depth + 1)
+//   })
+// }

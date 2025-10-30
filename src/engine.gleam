@@ -7,10 +7,10 @@ import gleam/otp/actor
 import gleam/string
 
 import pub_types.{
-  type Comment, type EngineMessage, type Post, type Subreddit, type User,
+  type Comment, type EngineMessage, type Post, type Subreddit, type User, User,
   Comment, CommentInSubReddit, CreateSubReddit, Downvote, GetInbox,
   JoinSubreddit, LeaveSubreddit, Post, PostInSubReddit, RegisterAccount,
-  RequestFeed, RequestKarma, SendMessage, Subreddit, Upvote, User,
+  RequestFeed, RequestKarma, SendMessage, Subreddit, Upvote, 
 }
 
 pub type EngineState {
@@ -123,40 +123,51 @@ fn handle_message_engine(
         }
       }
     }
-    CommentInSubReddit(parent_id, comment_text) -> {
+    CommentInSubReddit(parent_id, user_id, comment_text) -> {
       let new_comment =
         Comment(
-          "comment" <> int.to_string(state.num_comments),
+          "comment" <> int.to_string(dict.size(state.comments)),
           parent_id,
+          user_id,
           comment_text,
           [],
+          0,
+          0
         )
-      let new_state = update_comments_recursively(new_comment, state)
+      let new_state = update_comments(new_comment, state)
       actor.continue(
-        EngineState(
-          ..new_state,
-          comments: dict.insert(
-            new_state.comments,
-            new_comment.comment_id,
-            new_comment,
-          ),
-          num_comments: state.num_comments + 1,
-        ),
-      )
+          new_state
+        )
     }
-    Upvote(_parent_id) -> {
-      actor.continue(state)
+    Upvote(parent_id) -> {
+      io.println("upvoting"<>parent_id)
+      let new_state = update_votes(True, parent_id, state)
+      actor.continue(new_state)
     }
-    Downvote(_parent_id) -> {
-      actor.continue(state)
+    Downvote(parent_id) -> {
+      io.println("downvoting" <> parent_id)
+      let new_state = update_votes(False, parent_id, state)
+      actor.continue(new_state)
     }
-    RequestKarma(_user_id, _requester) -> {
+    RequestKarma(user_id, _requester) -> {
+      io.println("printed from engine")
+      let user_exists = dict.get(state.users, user_id)
+      case user_exists{
+        Ok(user)->{
+          io.println("ok users karma is" <> int.to_string(user.userkarma))
+        }
+        _->{
+          io.println("user dne")
+        }
+      }
       actor.continue(state)
     }
     RequestFeed(_user_id, requester) -> {
       // Temporarily gives only one post
       let assert Ok(post) = dict.get(state.posts, "post0")
       process.send(requester, pub_types.ReceiveFeed(post))
+      io.println(string.inspect(dict.to_list(state.posts)))
+      io.println(string.inspect(dict.to_list(state.comments)))
       actor.continue(state)
     }
     SendMessage(_from_user_id, _to_user_id, _message) -> {
@@ -189,7 +200,7 @@ fn print_subreddit_size(state: EngineState, i: Int, n: Int) {
   }
 }
 
-fn update_comments_recursively(
+fn update_comments(
   new_comment: Comment,
   state: EngineState,
 ) -> EngineState {
@@ -199,27 +210,17 @@ fn update_comments_recursively(
       let post_exists = dict.get(state.posts, new_comment.parent_id)
       case post_exists {
         Ok(post) -> {
-          let new_comments = list.append(post.comments, [new_comment])
-          let new_post = Post(..post, comments: new_comments)
-          let updated_posts =
-            dict.insert(state.posts, new_comment.parent_id, new_post)
+          //Update State Comments
+          let updated_comments = dict.insert(state.comments, new_comment.comment_id, new_comment)
 
-          // Update subreddit
-          let subreddit_exists = dict.get(state.subreddits, post.subreddit_id)
-          let updated_subreddits = case subreddit_exists {
-            Ok(subreddit) -> {
-              dict.insert(state.subreddits, post.subreddit_id, subreddit)
-            }
-            _ -> {
-              state.subreddits
-            }
-          }
+          //Update State Posts
+          let new_post_subcomments = list.append(post.comments, [new_comment.comment_id])
+          let new_post = Post(..post, comments: new_post_subcomments)
+          let updated_posts = dict.insert(state.posts, new_comment.parent_id, new_post)
 
-          let new_state =
-            EngineState(
-              ..state,
+          let new_state =EngineState(..state,
               posts: updated_posts,
-              subreddits: updated_subreddits,
+              comments: updated_comments,
             )
           new_state
         }
@@ -233,17 +234,21 @@ fn update_comments_recursively(
       let comment_exists = dict.get(state.comments, new_comment.parent_id)
       case comment_exists {
         Ok(parent_comment) -> {
-          let new_comments = list.append(parent_comment.comments, [new_comment])
+          //Insert the new comment into state comments
+          
+          let updated_comments = dict.insert(state.comments, new_comment.comment_id, new_comment)
+          //Insert the updated parent
+          let new_comments = list.append(parent_comment.comments, [new_comment.comment_id])
           let new_parent_comment =
             Comment(..parent_comment, comments: new_comments)
           let updated_comments =
             dict.insert(
-              state.comments,
+              updated_comments,
               new_comment.parent_id,
               new_parent_comment,
             )
           let new_state = EngineState(..state, comments: updated_comments)
-          update_comments_recursively(new_parent_comment, new_state)
+          new_state
         }
         _ -> {
           state
@@ -252,3 +257,104 @@ fn update_comments_recursively(
     }
   }
 }
+
+fn update_votes(
+  upvote: Bool,
+  parent_id: String,
+  state: EngineState,
+) -> EngineState {
+  let parent_is_post = string.starts_with(parent_id, "post")
+  case parent_is_post {
+    True -> {
+      let post_exists = dict.get(state.posts, parent_id)
+      case post_exists {
+        Ok(post) -> {
+          let user_exists = dict.get(state.users, post.user_id)
+          case user_exists{
+            Ok(user) -> {
+              case upvote{
+                True->{
+                  let updated_post = Post(..post, upvotes: post.upvotes + 1)
+                  let updated_posts = dict.insert(state.posts, parent_id, updated_post)
+                  let updated_user = User(..user, userkarma: user.userkarma + 1)
+                  let updated_users = dict.insert(state.users, user.user_id, updated_user)
+                  let new_state =EngineState(..state,
+                      posts: updated_posts,
+                      users: updated_users
+                    )
+                  new_state
+                }
+                False->{
+                  let updated_post = Post(..post, downvotes: post.downvotes + 1)
+                  let updated_posts = dict.insert(state.posts, parent_id, updated_post)
+                  let updated_user = User(..user, userkarma: user.userkarma - 1)
+                  let updated_users = dict.insert(state.users, user.user_id, updated_user)
+                  let new_state =EngineState(..state,
+                      posts: updated_posts,
+                      users: updated_users
+                    )
+                  new_state
+                }
+              }
+            }
+            _ ->{
+              io.println("User corresponding to the post was not found")
+              state
+            }
+          }
+        }
+        _ -> {
+          io.println(parent_id <> " does not exist in posts")
+          state
+        }
+      }
+    }
+    False -> {
+      let comment_exists = dict.get(state.comments, parent_id)
+      case comment_exists {
+        Ok(parent_comment) -> {
+          let user_exists = dict.get(state.users, parent_comment.user_id)
+          case user_exists{
+            Ok(user) -> {
+            case upvote {
+              True ->{
+                let updated_comment = Comment(..parent_comment, upvotes: parent_comment.upvotes + 1)
+                let updated_comments = dict.insert(state.comments, parent_id, updated_comment)
+                let updated_user = User(..user, userkarma: user.userkarma + 1)
+                let updated_users = dict.insert(state.users, user.user_id, updated_user)
+                let new_state =EngineState(..state,
+                    comments: updated_comments,
+                    users: updated_users
+                  )
+                new_state
+              }
+              False ->{
+                let updated_comment = Comment(..parent_comment, downvotes: parent_comment.downvotes + 1)
+                let updated_comments = dict.insert(state.comments, parent_id, updated_comment)
+
+                let updated_user = User(..user, userkarma: user.userkarma - 1)
+                let updated_users = dict.insert(state.users, user.user_id, updated_user)
+                let new_state =EngineState(..state,
+                    comments: updated_comments,
+                    users: updated_users
+                  )
+                new_state
+              }
+            }
+          }
+          _ ->{
+            io.println("User corresponding to the comment was never found")
+            state
+          }   
+        }  
+      }   
+      _ -> {
+        io.println("the parent id belongs to no comment")
+        state
+        }
+      }
+    }
+  }
+}
+
+
