@@ -175,6 +175,27 @@ fn handle_message_engine(
     GetInbox(_user_id, _requester) -> {
       actor.continue(state)
     }
+    pub_types.PrintSubredditSizes -> {
+      print_subreddit_size(state, 1, dict.size(state.subreddits))
+      actor.continue(state)
+    }
+  }
+}
+
+fn print_subreddit_size(state: EngineState, i: Int, n: Int) {
+  case i > n {
+    True -> Nil
+    False -> {
+      let assert Ok(sr) =
+        dict.get(state.subreddits, "subreddit" <> int.to_string(i))
+      io.println(
+        "subreddit"
+        <> int.to_string(i)
+        <> ": "
+        <> int.to_string(list.length(sr.members)),
+      )
+      print_subreddit_size(state, i + 1, n)
+    }
   }
 }
 
