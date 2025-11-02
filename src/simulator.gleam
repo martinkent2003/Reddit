@@ -70,7 +70,7 @@ fn handle_message_simulator(
       let assert Ok(client1) = dict.get(new_state.clients, 1)
       create_subreddits(state.num_subreddits, new_state.engine_subject, client1)
       process.sleep(100)
-      assign_subreddits(new_state, avg_subreddits_per_user)
+      assign_subreddits(new_state)
       process.sleep(100)
       process.send(new_state.engine_subject, pub_types.PrintSubredditSizes)
       process.send(client1, pub_types.Connect)
@@ -86,7 +86,7 @@ fn spawn_clients(state: SimulatorState, curr_user_id) {
         client.start_client(
           state.self_subject,
           state.engine_subject,
-          int.to_string(curr_user_id),
+          "user" <> int.to_string(curr_user_id),
         )
       let updated_clients =
         dict.insert(state.clients, curr_user_id, new_client.data)
@@ -131,7 +131,7 @@ fn create_subreddits(
   }
 }
 
-fn assign_subreddits(state: SimulatorState, num_to_join: Int) {
+fn assign_subreddits(state: SimulatorState) {
   let cumulative =
     list.scan(state.zipf_distribution_subreddits, 0.0, fn(w, acc) { acc +. w })
 
