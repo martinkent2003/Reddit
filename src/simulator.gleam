@@ -1,12 +1,10 @@
 import client
-import engine
 import gleam/dict.{type Dict}
 import gleam/erlang/process.{type Subject}
 import gleam/float
 import gleam/int
 import gleam/io
 import gleam/list
-import gleam/option.{None, Some}
 import gleam/otp/actor
 import gleam/result
 import pub_types.{
@@ -14,14 +12,22 @@ import pub_types.{
   ClientJoinSubreddit, StartSimulator,
 }
 
+const avg_subreddits_per_user = 5
+
+const zipf_s_subreddits = 1.0
+
+const zipf_s_clients = 0.5
+
 pub type SimulatorState {
   SimulatorState(
     main_process: Subject(String),
     engine_subject: Subject(EngineMessage),
     self_subject: Subject(SimulatorMessage),
     num_clients: Int,
+    num_subreddits: Int,
     clients: Dict(Int, Subject(ClientMessage)),
-    zipf_distribution: List(Float),
+    zipf_distribution_subreddits: List(Float),
+    zipf_distribution_clients: List(Float),
   )
 }
 
@@ -33,15 +39,19 @@ pub fn start_simulator(
   let _ =
     actor.new_with_initialiser(1000, fn(self_subject) {
       process.send(self_subject, StartSimulator)
-      let zipf = zipf_distribution(num_clients, 1.0)
+      let num_subreddits = num_clients / 2
+      let zipf_subreddits = zipf_distribution(num_subreddits, zipf_s_subreddits)
+      let zipf_clients = zipf_distribution(num_clients, zipf_s_clients)
       let state =
         SimulatorState(
           main_process,
           engine_subject,
           self_subject,
           num_clients,
+          num_clients / 2,
           dict.new(),
-          zipf,
+          zipf_subreddits,
+          zipf_clients,
         )
       let _result =
         Ok(actor.initialised(state) |> actor.returning(self_subject))
@@ -65,7 +75,7 @@ fn handle_message_simulator(
         client1,
       )
       process.sleep(100)
-      assign_subreddits(new_state, 1)
+      assign_subreddits(new_state, avg_subreddits_per_user)
       process.sleep(100)
       process.send(new_state.engine_subject, pub_types.PrintSubredditSizes)
       process.send(client1, pub_types.Connect)
@@ -97,8 +107,8 @@ fn spawn_clients(state: SimulatorState, curr_user_id) {
 
 // --- INITIALIZATION FUNCTIONS
 
-fn zipf_distribution(num_clients: Int, s: Float) {
-  let ranks = list.range(1, num_clients)
+fn zipf_distribution(n: Int, s: Float) {
+  let ranks = list.range(1, n)
   let weights =
     list.map(ranks, fn(rank) {
       let assert Ok(denominator) = float.power(int.to_float(rank), s)
@@ -129,10 +139,24 @@ fn create_subreddits(
 
 fn assign_subreddits(state: SimulatorState, num_to_join: Int) {
   let cumulative =
-    list.scan(state.zipf_distribution, 0.0, fn(w, acc) { acc +. w })
+    list.scan(state.zipf_distribution_subreddits, 0.0, fn(w, acc) { acc +. w })
 
-  dict.each(state.clients, fn(_id, client) {
-    let subreddit_ids = pick_unique_weighted_ids(cumulative, num_to_join)
+  let total_joins = int.to_float(avg_subreddits_per_user * state.num_clients)
+  let subreddits_to_join =
+    list.map(state.zipf_distribution_clients, fn(w) {
+      float.round(w *. total_joins) |> int.clamp(1, state.num_subreddits)
+    })
+  echo list.fold(subreddits_to_join, 0, fn(x, y) { x + y })
+
+  let clients_list =
+    dict.to_list(state.clients)
+    |> list.sort(fn(a, b) { int.compare(a.0, b.0) })
+  let paired = list.zip(clients_list, subreddits_to_join)
+
+  list.each(paired, fn(pair) {
+    let #(client_entry, count) = pair
+    let #(_id, client) = client_entry
+    let subreddit_ids = pick_unique_weighted_ids(cumulative, count)
     process.send(client, ClientJoinSubreddit(subreddit_ids))
   })
 }
@@ -159,9 +183,10 @@ pub fn pick_loop(
       let first = list.find(cumulative, fn(p) { p.1 >=. random })
       let new_selected = case first {
         Ok(p) -> {
-          case list.contains(selected, "subreddit" <> int.to_string(p.0)) {
+          case list.contains(selected, "subreddit" <> int.to_string(p.0 + 1)) {
             True -> selected
-            False -> list.append(selected, ["subreddit" <> int.to_string(p.0)])
+            False ->
+              list.append(selected, ["subreddit" <> int.to_string(p.0 + 1)])
           }
         }
         _ -> selected
