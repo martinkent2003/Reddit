@@ -6,6 +6,21 @@ pub type User {
   User(user_id: String, userkarma: Int, user_subject: Subject(ClientMessage))
 }
 
+pub type UserInbox{
+    UserInbox(
+        user_id: String,
+        inboxes: Dict(String, List(String)) // here the string is the id to the DirectMessage
+    )
+}
+
+pub type DirectMessage{
+    DirectMessage(
+        from_user_id: String,
+        to_user_id: String,
+        content: String,
+    )
+}
+
 pub type Comment {
   Comment(
     comment_id: String,
@@ -52,7 +67,7 @@ pub type ClientMessage {
   Connect
   Shutdown
   RegisterAccountAck
-
+  DirectMessageInbox(messages: Dict(String, DirectMessage))
   ClientJoinSubreddit(List(String))
   ReceiveFeed(post: Post)
 }

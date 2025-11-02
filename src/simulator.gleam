@@ -68,12 +68,18 @@ fn handle_message_simulator(
     StartSimulator -> {
       let new_state = spawn_clients(state, 1)
       let assert Ok(client1) = dict.get(new_state.clients, 1)
-      create_subreddits(state.num_subreddits, new_state.engine_subject, client1)
+      let assert Ok(client2) = dict.get(new_state.clients, 2)
+      create_subreddits(
+        new_state.num_clients,
+        new_state.engine_subject,
+        client1,
+      )
       process.sleep(100)
       assign_subreddits(new_state)
       process.sleep(100)
       process.send(new_state.engine_subject, pub_types.PrintSubredditSizes)
       process.send(client1, pub_types.Connect)
+      process.send(client2, pub_types.Connect)
       actor.continue(new_state)
     }
   }

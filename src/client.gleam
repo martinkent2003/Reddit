@@ -1,3 +1,4 @@
+import gleam/dict
 import gleam/erlang/process
 import gleam/io
 import gleam/list
@@ -7,7 +8,8 @@ import pub_types.{
   type ClientMessage, type EngineMessage, type SimulatorMessage,
   CommentInSubReddit, Connect, CreateSubReddit, PostInSubReddit, ReceiveFeed,
   RegisterAccount, RequestFeed, Upvote, Downvote, RequestKarma,
-  type Comment, type Post, ClientJoinSubreddit, JoinSubreddit
+  type Comment, type Post, ClientJoinSubreddit, JoinSubreddit, DirectMessageInbox,
+  SendMessage, GetInbox
 }
 
 pub type ClientState {
@@ -47,6 +49,11 @@ fn handle_message_client(
     }
     ReceiveFeed(post) -> {
       //print_post(post)
+      actor.continue(state)
+    }
+    DirectMessageInbox(user_inbox) -> {
+      io.println("Client " <> state.user_id <> " received inbox:\n")
+      io.println(string.inspect(dict.to_list(user_inbox))<>"\n")
       actor.continue(state)
     }
     ClientJoinSubreddit(sr_ids) -> {
@@ -108,8 +115,27 @@ fn test_functions(state: ClientState) {
     state.engine_subject,
     RequestKarma(state.user_id, state.self_subject)
   )
-
-
+  process.sleep(20)
+  case state.user_id {
+    "1" -> {
+      process.send(
+        state.engine_subject,
+        SendMessage(state.user_id, "2", "Hello from user 1")
+      )
+    }
+    "2" -> {
+      process.send(
+        state.engine_subject,
+        SendMessage(state.user_id, "1", "Hello from user 2")
+      )
+    }
+    _ -> {}
+  }
+  process.sleep(20)
+  process.send(
+     state.engine_subject,
+     GetInbox(state.user_id, state.self_subject)
+  )
   process.sleep(20)
   process.send(
     state.engine_subject,

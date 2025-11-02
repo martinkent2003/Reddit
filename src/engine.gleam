@@ -7,10 +7,11 @@ import gleam/otp/actor
 import gleam/string
 
 import pub_types.{
-  type Comment, type EngineMessage, type Post, type Subreddit, type User, User,
+  type Comment, type EngineMessage, type Post, type Subreddit, type User, type UserInbox, UserInbox,
+   type DirectMessage, DirectMessage, User,
   Comment, CommentInSubReddit, CreateSubReddit, Downvote, GetInbox,
   JoinSubreddit, LeaveSubreddit, Post, PostInSubReddit, RegisterAccount,
-  RequestFeed, RequestKarma, SendMessage, Subreddit, Upvote, 
+  RequestFeed, RequestKarma, SendMessage, Subreddit, Upvote, DirectMessageInbox
 }
 
 pub type EngineState {
@@ -20,6 +21,8 @@ pub type EngineState {
     posts: Dict(String, Post),
     comments: Dict(String, Comment),
     subreddits: Dict(String, Subreddit),
+    users_inbox: Dict(String, UserInbox),
+    direct_messages: Dict(String, DirectMessage),
     num_comments: Int,
   )
 }
@@ -27,7 +30,7 @@ pub type EngineState {
 pub fn start_engine() {
   let _ =
     actor.new_with_initialiser(1000, fn(self_subject) {
-      let state = EngineState(dict.new(), dict.new(), dict.new(), dict.new(), 0)
+      let state = EngineState(dict.new(), dict.new(), dict.new(), dict.new(), dict.new(), dict.new(), 0)
       let _result =
         Ok(actor.initialised(state) |> actor.returning(self_subject))
     })
@@ -42,8 +45,10 @@ fn handle_message_engine(
   case message {
     RegisterAccount(user_id, requester) -> {
       let new_user = User(user_id, 0, requester)
-      let updated = dict.insert(state.users, user_id, new_user)
-      let new_state = EngineState(..state, users: updated)
+      let updated_users = dict.insert(state.users, user_id, new_user)
+      let new_inbox = UserInbox(user_id, dict.new())
+      let updated_inboxes = dict.insert(state.users_inbox, user_id, new_inbox)
+      let new_state = EngineState(..state, users: updated_users, users_inbox: updated_inboxes)
       io.println("User: " <> user_id <> " initialized")
       actor.continue(new_state)
     }
@@ -170,10 +175,60 @@ fn handle_message_engine(
       io.println(string.inspect(dict.to_list(state.comments)))
       actor.continue(state)
     }
-    SendMessage(_from_user_id, _to_user_id, _message) -> {
-      actor.continue(state)
+    SendMessage(from_user_id, to_user_id, message) -> {
+      //update direct messages 
+      let direct_message = DirectMessage(from_user_id, to_user_id, message)
+      let message_id = int.to_string(dict.size(state.direct_messages))
+      let updated_direct_messages = dict.insert(state.direct_messages, message_id, direct_message)
+      //update inbox of user who got the message
+      let receiver_inbox = dict.get(state.users_inbox, to_user_id)
+      case receiver_inbox {
+        Ok(receiver)->{
+          let senders_sent_messages = dict.get(receiver.inboxes, from_user_id)
+          case senders_sent_messages{
+            Ok(sent)->{
+              //update inbox for that particular sender
+              let updated_sent_from_user = list.append(sent, [message_id])
+              let updated_sent = dict.insert(receiver.inboxes, from_user_id, updated_sent_from_user)
+              let updated_receiver = UserInbox(..receiver, inboxes: updated_sent)
+              let updated_users_inbox = dict.insert(state.users_inbox, to_user_id, updated_receiver)
+
+              //update state
+              let new_state= EngineState(..state, direct_messages: updated_direct_messages, users_inbox: updated_users_inbox)
+              actor.continue(new_state)
+            }
+            _->{
+              //create inbox as there previously didn't exist one, insert a list with the message id as the only value
+              let updated_sent = dict.insert(receiver.inboxes, from_user_id, [message_id])
+              let updated_receiver = UserInbox(..receiver, inboxes: updated_sent)
+              let updated_users_inbox = dict.insert(state.users_inbox, to_user_id, updated_receiver)
+
+              //update state
+              let new_state= EngineState(..state, direct_messages: updated_direct_messages, users_inbox: updated_users_inbox)
+              actor.continue(new_state)
+            }
+          }
+        
+        }
+        _->{
+          io.println("User Id not found in inboxes")
+          actor.continue(state)
+        }
+      }
     }
-    GetInbox(_user_id, _requester) -> {
+    GetInbox(user_id, requester) -> {
+      let check_user = dict.get(state.users_inbox, user_id)
+      case check_user {
+        Ok(user_inbox)->{
+          //send list of direct_message to requester
+          let user_inbox_values = list.flatten(dict.values(user_inbox.inboxes))
+          let filtered_state = dict.take(state.direct_messages, user_inbox_values)
+          process.send(requester, DirectMessageInbox(filtered_state))
+        }
+        _->{
+          io.println("User Id not found in inboxes")
+        }
+      }
       actor.continue(state)
     }
     pub_types.PrintSubredditSizes -> {
