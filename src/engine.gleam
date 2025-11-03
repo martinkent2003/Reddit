@@ -11,7 +11,8 @@ import pub_types.{
    type DirectMessage, DirectMessage, User,
   Comment, CommentInSubReddit, CreateSubReddit, Downvote, GetInbox,
   JoinSubreddit, LeaveSubreddit, Post, PostInSubReddit, RegisterAccount,
-  RequestFeed, RequestKarma, SendMessage, Subreddit, Upvote, DirectMessageInbox
+  RequestFeed, RequestKarma, SendMessage, Subreddit, Upvote, DirectMessageInbox,
+  ReceiveFeed
 }
 
 pub type EngineState {
@@ -44,7 +45,7 @@ fn handle_message_engine(
 ) -> actor.Next(EngineState, EngineMessage) {
   case message {
     RegisterAccount(user_id, requester) -> {
-      let new_user = User(user_id, 0, requester)
+      let new_user = User(user_id, 0, requester, [])
       let updated_users = dict.insert(state.users, user_id, new_user)
       let new_inbox = UserInbox(user_id, dict.new())
       let updated_inboxes = dict.insert(state.users_inbox, user_id, new_inbox)
@@ -68,35 +69,47 @@ fn handle_message_engine(
       }
     }
     JoinSubreddit(user_id, sr_id, _requester) -> {
-      let exists = dict.get(state.subreddits, sr_id)
-      case exists {
-        Ok(subreddit) -> {
+      let sr_exists = dict.get(state.subreddits, sr_id)
+      let user_exists = dict.get(state.users, user_id)
+      case sr_exists, user_exists {
+        Ok(subreddit), Ok(user) -> {
           //add the user to list of members of the subreddit
           let new_members = list.append(subreddit.members, [user_id])
           let updated_subreddit = Subreddit(..subreddit, members: new_members)
           let updated_subreddits =
             dict.insert(state.subreddits, sr_id, updated_subreddit)
-          let new_state = EngineState(..state, subreddits: updated_subreddits)
+          //add the subreddit to the user's list of subscribed subbreddits
+          let updated_subscribed_sr = list.append(user.subscribed_sr, [sr_id])
+          let new_user = User(..user, subscribed_sr: updated_subscribed_sr)
+          let updated_users = dict.insert(state.users, user_id, new_user)
+          let new_state = EngineState(..state, users: updated_users, subreddits: updated_subreddits)
           actor.continue(new_state)
         }
-        _ -> {
+        _, _ -> {
           actor.continue(state)
         }
       }
     }
     LeaveSubreddit(user_id, sr_id, _requester) -> {
-      let exists = dict.get(state.subreddits, sr_id)
-      case exists {
-        Ok(subreddit) -> {
+      let sr_exists = dict.get(state.subreddits, sr_id)
+      let user_exists = dict.get(state.users, user_id)
+      case sr_exists, user_exists {
+        Ok(subreddit), Ok(user) -> {
+          //filter out the user from the subreddit
           let new_members =
             list.filter(subreddit.members, fn(x) { x != user_id })
           let updated_subreddit = Subreddit(..subreddit, members: new_members)
           let updated_subreddits =
             dict.insert(state.subreddits, sr_id, updated_subreddit)
-          let new_state = EngineState(..state, subreddits: updated_subreddits)
+          //filter out the subreddit from the user
+          let updated_subscribed_sr = 
+            list.filter(user.subscribed_sr, fn(x) {x != sr_id})
+          let updated_user = User(..user, subscribed_sr: updated_subscribed_sr)
+          let updated_users = dict.insert(state.users, user_id, updated_user)
+          let new_state = EngineState(..state, users: updated_users, subreddits: updated_subreddits)
           actor.continue(new_state)
         }
-        _ -> {
+        _ , _ -> {
           actor.continue(state)
         }
       }
@@ -167,12 +180,24 @@ fn handle_message_engine(
       }
       actor.continue(state)
     }
-    RequestFeed(_user_id, requester) -> {
-      // Temporarily gives only one post
-      let assert Ok(post) = dict.get(state.posts, "post0")
-      process.send(requester, pub_types.ReceiveFeed(post))
-      io.println(string.inspect(dict.to_list(state.posts)))
-      io.println(string.inspect(dict.to_list(state.comments)))
+    RequestFeed(user_id, requester) -> {
+      // Get posts from each subreddit the user is subscribed to
+      let user_exists = dict.get(state.users, user_id)
+      case user_exists{
+        Ok(user) -> {
+          let subreddits = dict.values(dict.take(state.subreddits, user.subscribed_sr))
+          let post_ids = list.map(subreddits, fn(sr) {
+            sr.posts
+          }) |> list.flatten()
+          let posts = dict.values(dict.take(state.posts, post_ids))
+          let remove = int.min(list.length(posts) - 100, 0)
+          let posts = list.drop(posts, remove)
+          process.send(requester, ReceiveFeed(posts))
+        }
+        _-> {
+          io.println("User " <> user_id <> " does not exist and is requesting a feed")
+        }
+      }
       actor.continue(state)
     }
     SendMessage(from_user_id, to_user_id, message) -> {

@@ -55,13 +55,15 @@ fn handle_message_client(
       test_functions(state)
       actor.continue(state)
     }
-    ReceiveFeed(post) -> {
+    ReceiveFeed(posts) -> {
+      io.println("Client " <> state.user_id <> " received feed:")
+      io.println(string.inspect(posts))
       //print_post(post)
       actor.continue(state)
     }
     DirectMessageInbox(user_inbox) -> {
-      io.println("Client " <> state.user_id <> " received inbox:\n")
-      io.println(string.inspect(dict.to_list(user_inbox)) <> "\n")
+      io.println("Client " <> state.user_id <> " received inbox:")
+      io.println(string.inspect(dict.to_list(user_inbox))<>"\n")
       actor.continue(state)
     }
     ClientJoinSubreddit(sr_ids) -> {

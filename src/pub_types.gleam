@@ -3,7 +3,12 @@ import gleam/erlang/process.{type Subject}
 import gleam/option.{type Option}
 
 pub type User {
-  User(user_id: String, userkarma: Int, user_subject: Subject(ClientMessage))
+  User(
+    user_id: String, 
+    userkarma: Int, 
+    user_subject: Subject(ClientMessage),
+    subscribed_sr: List(String),
+  )
 }
 
 pub type UserInbox{
@@ -69,7 +74,7 @@ pub type ClientMessage {
   RegisterAccountAck
   DirectMessageInbox(messages: Dict(String, DirectMessage))
   ClientJoinSubreddit(List(String))
-  ReceiveFeed(post: Post)
+  ReceiveFeed(posts: List(Post))
 }
 
 pub type EngineMessage {
