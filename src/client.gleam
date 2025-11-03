@@ -12,7 +12,7 @@ import pub_types.{
   type SimulatorMessage, ClientJoinSubreddit, CommentInSubReddit, Connect,
   CreateSubReddit, DirectMessageInbox, Downvote, RequestInbox, JoinSubreddit,
   PostInSubReddit, ReceiveFeed, RegisterAccount, RequestFeed, RequestKarma,
-  SendMessage, Upvote, ActivitySim, ActOnComment, GetComment
+  SendMessage, Upvote, ActivitySim, ActOnComment, GetComment, ReceiveKarma
 }
 
 pub type ClientState {
@@ -24,6 +24,7 @@ pub type ClientState {
     activity_timeout: Float,
     sr_ids: List(String),
     feed: List(Post),
+    karma: Int,
     inbox : Dict(String, DirectMessage)
   )
 }
@@ -46,6 +47,7 @@ pub fn start_client(
           activity_timeout,
           [],
           [],
+          0,
           dict.new()
         )
       let _result =
@@ -69,6 +71,10 @@ fn handle_message_client(
       //io.println("Client " <> state.user_id <> " received feed:")
       //io.println(string.inspect(posts))
       let updated_state = ClientState(..state, feed: posts)
+      actor.continue(updated_state)
+    }
+    ReceiveKarma(karma) -> {
+      let updated_state = ClientState(..state, karma: karma)
       actor.continue(updated_state)
     }
     DirectMessageInbox(user_inbox) -> {
@@ -104,7 +110,8 @@ fn handle_message_client(
                   process.send(state.engine_subject, SendMessage(state.user_id, post.user_id, message ))
                 }
                 _->{
-                  io.println("Client "<>state.user_id<>" no feed, no inbox, cannot send message")
+                  //io.println("Client "<>state.user_id<>" no feed, no inbox, cannot send message")
+                  Nil
                 }
               }
             }
@@ -118,7 +125,8 @@ fn handle_message_client(
                   process.send(state.engine_subject, SendMessage(state.user_id, target_id, message))
                 }
                 _->{
-                  io.println("No messages in inbox SOMETHING IS WEIRD")
+                  //io.println("No messages in inbox SOMETHING IS WEIRD")
+                  Nil
                 }
               }
               Nil
@@ -131,7 +139,10 @@ fn handle_message_client(
           let sr_id = list.first(list.drop(state.sr_ids, ind))
           case sr_id {
             Ok(sr_id) -> process.send(state.engine_subject, PostInSubReddit(state.user_id, sr_id, "Post by " <> state.user_id <> " in " <> sr_id))
-            _ -> io.println("SOMETHING IS WEIRD choosing a subreddit to post to")
+            _ -> {
+              //io.println("SOMETHING IS WEIRD choosing a subreddit to post to")
+              Nil
+            }
           }
           Nil
         }
@@ -144,7 +155,8 @@ fn handle_message_client(
                 act_on_parent_id(post.post_id, state.user_id, state.engine_subject)
             }
             _->{
-              io.println("Client "<>state.user_id<>" has no posts to interact with in their feed :(")
+              //io.println("Client "<>state.user_id<>" has no posts to interact with in their feed :(")
+              Nil
             }
           }
         }
@@ -161,12 +173,14 @@ fn handle_message_client(
                   process.send(state.engine_subject, GetComment(comment, state.self_subject))
                 }
                 _->{
-                  io.println("Comment not existing under post: Activity commenting")
+                  //io.println("Comment not existing under post: Activity commenting")
+                  Nil
                 }
               }
             }
             _->{
-              io.println("Client "<>state.user_id<>" has no posts to interact with in their feed :(")
+              //io.println("Client "<>state.user_id<>" has no posts to interact with in their feed :(")
+              Nil
             }
           }
         }
@@ -194,7 +208,8 @@ fn handle_message_client(
               process.send(state.engine_subject, GetComment(comment, state.self_subject))
             }
             _->{
-              io.println("Comment not existing under post: Activity commenting")
+              //io.println("Comment not existing under comment: Activity commenting")
+              Nil
             }
           }
         }
@@ -206,7 +221,7 @@ fn handle_message_client(
       actor.continue(state)
     }
     _ -> {
-      io.println("Client " <> state.user_id <> " received unknown message")
+      //io.println("Client " <> state.user_id <> " received unknown message")
       actor.continue(state)
     }
   }

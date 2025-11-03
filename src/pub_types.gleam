@@ -75,6 +75,7 @@ pub type ClientMessage {
   DirectMessageInbox(messages: Dict(String, DirectMessage))
   ClientJoinSubreddit(List(String))
   ReceiveFeed(posts: List(Post))
+  ReceiveKarma(karma: Int)
   ActivitySim
   ActOnComment(comment: Comment)
 }

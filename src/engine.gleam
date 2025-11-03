@@ -12,7 +12,7 @@ import pub_types.{
   Comment, CommentInSubReddit, CreateSubReddit, Downvote, RequestInbox,
   JoinSubreddit, LeaveSubreddit, Post, PostInSubReddit, RegisterAccount,
   RequestFeed, RequestKarma, SendMessage, Subreddit, Upvote, DirectMessageInbox,
-  ReceiveFeed, Pong, GetComment, ActOnComment
+  ReceiveFeed, ReceiveKarma, Pong, GetComment, ActOnComment
 }
 
 pub type EngineState {
@@ -60,14 +60,14 @@ fn handle_message_engine(
       let updated_inboxes = dict.insert(state.users_inbox, user_id, new_inbox)
       let new_state =
         EngineState(..state, users: updated_users, users_inbox: updated_inboxes)
-      io.println("User: " <> user_id <> " initialized")
+      //io.println("User: " <> user_id <> " initialized")
       actor.continue(new_state)
     }
     CreateSubReddit(sr_id, _requester) -> {
       let already_exists = dict.get(state.subreddits, sr_id)
       case already_exists {
         Ok(_subreddit) -> {
-          io.println("Already exists")
+          //io.println("Already exists")
           actor.continue(state)
         }
         _ -> {
@@ -182,30 +182,33 @@ fn handle_message_engine(
           process.send(requester, ActOnComment(comment))
         }
         _->{
-          io.println(comment_id <> "does not exist, failed GetCommment")
+          //io.println(comment_id <> "does not exist, failed GetCommment")
+          Nil
         }
       }
       actor.continue(state)
     }
     Upvote(parent_id) -> {
-      io.println("upvoting" <> parent_id)
+      //io.println("upvoting" <> parent_id)
       let new_state = update_votes(True, parent_id, state)
       actor.continue(new_state)
     }
     Downvote(parent_id) -> {
-      io.println("downvoting" <> parent_id)
+      //io.println("downvoting" <> parent_id)
       let new_state = update_votes(False, parent_id, state)
       actor.continue(new_state)
     }
-    RequestKarma(user_id, _requester) -> {
-      io.println("printed from engine")
+    RequestKarma(user_id, requester) -> {
+      //io.println("printed from engine")
       let user_exists = dict.get(state.users, user_id)
       case user_exists {
         Ok(user) -> {
-          io.println("ok users karma is" <> int.to_string(user.userkarma))
+          //io.println("ok users karma is" <> int.to_string(user.userkarma))
+          process.send(requester, ReceiveKarma(user.userkarma))
         }
         _ -> {
-          io.println("user dne")
+          //io.println("user dne")
+          Nil
         }
       }
       actor.continue(state)
@@ -226,9 +229,8 @@ fn handle_message_engine(
           process.send(requester, ReceiveFeed(posts))
         }
         _ -> {
-          io.println(
-            "User " <> user_id <> " does not exist and is requesting a feed",
-          )
+          //io.println("User " <> user_id <> " does not exist and is requesting a feed",)
+          Nil
         }
       }
       actor.continue(state)
@@ -289,7 +291,7 @@ fn handle_message_engine(
           }
         }
         _ -> {
-          io.println("User Id not found in inboxes")
+          //io.println("User Id not found in inboxes")
           actor.continue(state)
         }
       }
@@ -305,16 +307,20 @@ fn handle_message_engine(
           process.send(requester, DirectMessageInbox(filtered_state))
         }
         _ -> {
-          io.println("User Id not found in inboxes")
+          //io.println("User Id not found in inboxes")
+          Nil
         }
       }
       actor.continue(state)
     }
     pub_types.PrintSubredditSizes -> {
-      print_subreddit_size(state, 1, dict.size(state.subreddits))
+      //print_subreddit_size(state, 1, dict.size(state.subreddits))
       actor.continue(state)
     }
     Pong(iteration, return_to) -> {
+      io.print("Posts [" <> int.to_string(dict.size(state.posts)))
+      io.print("] Comments [" <> int.to_string(dict.size(state.comments)))
+      io.println("] DMs [" <> int.to_string(dict.size(state.direct_messages)) <> "]")
       process.send(return_to, pub_types.ReceivePong(iteration))
       actor.continue(state)
     }
