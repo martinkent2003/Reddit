@@ -12,7 +12,7 @@ import pub_types.{
   Comment, CommentInSubReddit, CreateSubReddit, Downvote, RequestInbox,
   JoinSubreddit, LeaveSubreddit, Post, PostInSubReddit, RegisterAccount,
   RequestFeed, RequestKarma, SendMessage, Subreddit, Upvote, DirectMessageInbox,
-  ReceiveFeed, GetComment, ActOnComment
+  ReceiveFeed, Pong, GetComment, ActOnComment
 }
 
 pub type EngineState {
@@ -31,7 +31,16 @@ pub type EngineState {
 pub fn start_engine() {
   let _ =
     actor.new_with_initialiser(1000, fn(self_subject) {
-      let state = EngineState(dict.new(), dict.new(), dict.new(), dict.new(), dict.new(), dict.new(), 0)
+      let state =
+        EngineState(
+          dict.new(),
+          dict.new(),
+          dict.new(),
+          dict.new(),
+          dict.new(),
+          dict.new(),
+          0,
+        )
       let _result =
         Ok(actor.initialised(state) |> actor.returning(self_subject))
     })
@@ -49,7 +58,8 @@ fn handle_message_engine(
       let updated_users = dict.insert(state.users, user_id, new_user)
       let new_inbox = UserInbox(user_id, dict.new())
       let updated_inboxes = dict.insert(state.users_inbox, user_id, new_inbox)
-      let new_state = EngineState(..state, users: updated_users, users_inbox: updated_inboxes)
+      let new_state =
+        EngineState(..state, users: updated_users, users_inbox: updated_inboxes)
       io.println("User: " <> user_id <> " initialized")
       actor.continue(new_state)
     }
@@ -82,7 +92,12 @@ fn handle_message_engine(
           let updated_subscribed_sr = list.append(user.subscribed_sr, [sr_id])
           let new_user = User(..user, subscribed_sr: updated_subscribed_sr)
           let updated_users = dict.insert(state.users, user_id, new_user)
-          let new_state = EngineState(..state, users: updated_users, subreddits: updated_subreddits)
+          let new_state =
+            EngineState(
+              ..state,
+              users: updated_users,
+              subreddits: updated_subreddits,
+            )
           actor.continue(new_state)
         }
         _, _ -> {
@@ -102,14 +117,19 @@ fn handle_message_engine(
           let updated_subreddits =
             dict.insert(state.subreddits, sr_id, updated_subreddit)
           //filter out the subreddit from the user
-          let updated_subscribed_sr = 
-            list.filter(user.subscribed_sr, fn(x) {x != sr_id})
+          let updated_subscribed_sr =
+            list.filter(user.subscribed_sr, fn(x) { x != sr_id })
           let updated_user = User(..user, subscribed_sr: updated_subscribed_sr)
           let updated_users = dict.insert(state.users, user_id, updated_user)
-          let new_state = EngineState(..state, users: updated_users, subreddits: updated_subreddits)
+          let new_state =
+            EngineState(
+              ..state,
+              users: updated_users,
+              subreddits: updated_subreddits,
+            )
           actor.continue(new_state)
         }
-        _ , _ -> {
+        _, _ -> {
           actor.continue(state)
         }
       }
@@ -150,12 +170,10 @@ fn handle_message_engine(
           comment_text,
           [],
           0,
-          0
+          0,
         )
       let new_state = update_comments(new_comment, state)
-      actor.continue(
-          new_state
-        )
+      actor.continue(new_state)
     }
     GetComment(comment_id, requester)->{
       let comment_exists = dict.get(state.comments, comment_id)
@@ -170,7 +188,7 @@ fn handle_message_engine(
       actor.continue(state)
     }
     Upvote(parent_id) -> {
-      io.println("upvoting"<>parent_id)
+      io.println("upvoting" <> parent_id)
       let new_state = update_votes(True, parent_id, state)
       actor.continue(new_state)
     }
@@ -182,11 +200,11 @@ fn handle_message_engine(
     RequestKarma(user_id, _requester) -> {
       io.println("printed from engine")
       let user_exists = dict.get(state.users, user_id)
-      case user_exists{
-        Ok(user)->{
+      case user_exists {
+        Ok(user) -> {
           io.println("ok users karma is" <> int.to_string(user.userkarma))
         }
-        _->{
+        _ -> {
           io.println("user dne")
         }
       }
@@ -195,19 +213,22 @@ fn handle_message_engine(
     RequestFeed(user_id, requester) -> {
       // Get posts from each subreddit the user is subscribed to
       let user_exists = dict.get(state.users, user_id)
-      case user_exists{
+      case user_exists {
         Ok(user) -> {
-          let subreddits = dict.values(dict.take(state.subreddits, user.subscribed_sr))
-          let post_ids = list.map(subreddits, fn(sr) {
-            sr.posts
-          }) |> list.flatten()
+          let subreddits =
+            dict.values(dict.take(state.subreddits, user.subscribed_sr))
+          let post_ids =
+            list.map(subreddits, fn(sr) { sr.posts })
+            |> list.flatten()
           let posts = dict.values(dict.take(state.posts, post_ids))
           let remove = int.min(list.length(posts) - 100, 0)
           let posts = list.drop(posts, remove)
           process.send(requester, ReceiveFeed(posts))
         }
-        _-> {
-          io.println("User " <> user_id <> " does not exist and is requesting a feed")
+        _ -> {
+          io.println(
+            "User " <> user_id <> " does not exist and is requesting a feed",
+          )
         }
       }
       actor.continue(state)
@@ -216,38 +237,58 @@ fn handle_message_engine(
       //update direct messages 
       let direct_message = DirectMessage(from_user_id, to_user_id, message)
       let message_id = int.to_string(dict.size(state.direct_messages))
-      let updated_direct_messages = dict.insert(state.direct_messages, message_id, direct_message)
+      let updated_direct_messages =
+        dict.insert(state.direct_messages, message_id, direct_message)
       //update inbox of user who got the message
       let receiver_inbox = dict.get(state.users_inbox, to_user_id)
       case receiver_inbox {
-        Ok(receiver)->{
+        Ok(receiver) -> {
           let senders_sent_messages = dict.get(receiver.inboxes, from_user_id)
-          case senders_sent_messages{
-            Ok(sent)->{
+          case senders_sent_messages {
+            Ok(sent) -> {
               //update inbox for that particular sender
               let updated_sent_from_user = list.append(sent, [message_id])
-              let updated_sent = dict.insert(receiver.inboxes, from_user_id, updated_sent_from_user)
-              let updated_receiver = UserInbox(..receiver, inboxes: updated_sent)
-              let updated_users_inbox = dict.insert(state.users_inbox, to_user_id, updated_receiver)
+              let updated_sent =
+                dict.insert(
+                  receiver.inboxes,
+                  from_user_id,
+                  updated_sent_from_user,
+                )
+              let updated_receiver =
+                UserInbox(..receiver, inboxes: updated_sent)
+              let updated_users_inbox =
+                dict.insert(state.users_inbox, to_user_id, updated_receiver)
 
               //update state
-              let new_state= EngineState(..state, direct_messages: updated_direct_messages, users_inbox: updated_users_inbox)
+              let new_state =
+                EngineState(
+                  ..state,
+                  direct_messages: updated_direct_messages,
+                  users_inbox: updated_users_inbox,
+                )
               actor.continue(new_state)
             }
-            _->{
+            _ -> {
               //create inbox as there previously didn't exist one, insert a list with the message id as the only value
-              let updated_sent = dict.insert(receiver.inboxes, from_user_id, [message_id])
-              let updated_receiver = UserInbox(..receiver, inboxes: updated_sent)
-              let updated_users_inbox = dict.insert(state.users_inbox, to_user_id, updated_receiver)
+              let updated_sent =
+                dict.insert(receiver.inboxes, from_user_id, [message_id])
+              let updated_receiver =
+                UserInbox(..receiver, inboxes: updated_sent)
+              let updated_users_inbox =
+                dict.insert(state.users_inbox, to_user_id, updated_receiver)
 
               //update state
-              let new_state= EngineState(..state, direct_messages: updated_direct_messages, users_inbox: updated_users_inbox)
+              let new_state =
+                EngineState(
+                  ..state,
+                  direct_messages: updated_direct_messages,
+                  users_inbox: updated_users_inbox,
+                )
               actor.continue(new_state)
             }
           }
-        
         }
-        _->{
+        _ -> {
           io.println("User Id not found in inboxes")
           actor.continue(state)
         }
@@ -256,13 +297,14 @@ fn handle_message_engine(
     RequestInbox(user_id, requester) -> {
       let check_user = dict.get(state.users_inbox, user_id)
       case check_user {
-        Ok(user_inbox)->{
+        Ok(user_inbox) -> {
           //send list of direct_message to requester
           let user_inbox_values = list.flatten(dict.values(user_inbox.inboxes))
-          let filtered_state = dict.take(state.direct_messages, user_inbox_values)
+          let filtered_state =
+            dict.take(state.direct_messages, user_inbox_values)
           process.send(requester, DirectMessageInbox(filtered_state))
         }
-        _->{
+        _ -> {
           io.println("User Id not found in inboxes")
         }
       }
@@ -270,6 +312,10 @@ fn handle_message_engine(
     }
     pub_types.PrintSubredditSizes -> {
       print_subreddit_size(state, 1, dict.size(state.subreddits))
+      actor.continue(state)
+    }
+    Pong(iteration, return_to) -> {
+      process.send(return_to, pub_types.ReceivePong(iteration))
       actor.continue(state)
     }
   }
@@ -292,10 +338,7 @@ fn print_subreddit_size(state: EngineState, i: Int, n: Int) {
   }
 }
 
-fn update_comments(
-  new_comment: Comment,
-  state: EngineState,
-) -> EngineState {
+fn update_comments(new_comment: Comment, state: EngineState) -> EngineState {
   let parent_is_post = string.starts_with(new_comment.parent_id, "post")
   case parent_is_post {
     True -> {
@@ -303,14 +346,19 @@ fn update_comments(
       case post_exists {
         Ok(post) -> {
           //Update State Comments
-          let updated_comments = dict.insert(state.comments, new_comment.comment_id, new_comment)
+          let updated_comments =
+            dict.insert(state.comments, new_comment.comment_id, new_comment)
 
           //Update State Posts
-          let new_post_subcomments = list.append(post.comments, [new_comment.comment_id])
+          let new_post_subcomments =
+            list.append(post.comments, [new_comment.comment_id])
           let new_post = Post(..post, comments: new_post_subcomments)
-          let updated_posts = dict.insert(state.posts, new_comment.parent_id, new_post)
+          let updated_posts =
+            dict.insert(state.posts, new_comment.parent_id, new_post)
 
-          let new_state =EngineState(..state,
+          let new_state =
+            EngineState(
+              ..state,
               posts: updated_posts,
               comments: updated_comments,
             )
@@ -327,10 +375,12 @@ fn update_comments(
       case comment_exists {
         Ok(parent_comment) -> {
           //Insert the new comment into state comments
-          
-          let updated_comments = dict.insert(state.comments, new_comment.comment_id, new_comment)
+
+          let updated_comments =
+            dict.insert(state.comments, new_comment.comment_id, new_comment)
           //Insert the updated parent
-          let new_comments = list.append(parent_comment.comments, [new_comment.comment_id])
+          let new_comments =
+            list.append(parent_comment.comments, [new_comment.comment_id])
           let new_parent_comment =
             Comment(..parent_comment, comments: new_comments)
           let updated_comments =
@@ -362,34 +412,42 @@ fn update_votes(
       case post_exists {
         Ok(post) -> {
           let user_exists = dict.get(state.users, post.user_id)
-          case user_exists{
+          case user_exists {
             Ok(user) -> {
-              case upvote{
-                True->{
+              case upvote {
+                True -> {
                   let updated_post = Post(..post, upvotes: post.upvotes + 1)
-                  let updated_posts = dict.insert(state.posts, parent_id, updated_post)
+                  let updated_posts =
+                    dict.insert(state.posts, parent_id, updated_post)
                   let updated_user = User(..user, userkarma: user.userkarma + 1)
-                  let updated_users = dict.insert(state.users, user.user_id, updated_user)
-                  let new_state =EngineState(..state,
+                  let updated_users =
+                    dict.insert(state.users, user.user_id, updated_user)
+                  let new_state =
+                    EngineState(
+                      ..state,
                       posts: updated_posts,
-                      users: updated_users
+                      users: updated_users,
                     )
                   new_state
                 }
-                False->{
+                False -> {
                   let updated_post = Post(..post, downvotes: post.downvotes + 1)
-                  let updated_posts = dict.insert(state.posts, parent_id, updated_post)
+                  let updated_posts =
+                    dict.insert(state.posts, parent_id, updated_post)
                   let updated_user = User(..user, userkarma: user.userkarma - 1)
-                  let updated_users = dict.insert(state.users, user.user_id, updated_user)
-                  let new_state =EngineState(..state,
+                  let updated_users =
+                    dict.insert(state.users, user.user_id, updated_user)
+                  let new_state =
+                    EngineState(
+                      ..state,
                       posts: updated_posts,
-                      users: updated_users
+                      users: updated_users,
                     )
                   new_state
                 }
               }
             }
-            _ ->{
+            _ -> {
               io.println("User corresponding to the post was not found")
               state
             }
@@ -406,47 +464,61 @@ fn update_votes(
       case comment_exists {
         Ok(parent_comment) -> {
           let user_exists = dict.get(state.users, parent_comment.user_id)
-          case user_exists{
+          case user_exists {
             Ok(user) -> {
-            case upvote {
-              True ->{
-                let updated_comment = Comment(..parent_comment, upvotes: parent_comment.upvotes + 1)
-                let updated_comments = dict.insert(state.comments, parent_id, updated_comment)
-                let updated_user = User(..user, userkarma: user.userkarma + 1)
-                let updated_users = dict.insert(state.users, user.user_id, updated_user)
-                let new_state =EngineState(..state,
-                    comments: updated_comments,
-                    users: updated_users
-                  )
-                new_state
-              }
-              False ->{
-                let updated_comment = Comment(..parent_comment, downvotes: parent_comment.downvotes + 1)
-                let updated_comments = dict.insert(state.comments, parent_id, updated_comment)
+              case upvote {
+                True -> {
+                  let updated_comment =
+                    Comment(
+                      ..parent_comment,
+                      upvotes: parent_comment.upvotes + 1,
+                    )
+                  let updated_comments =
+                    dict.insert(state.comments, parent_id, updated_comment)
+                  let updated_user = User(..user, userkarma: user.userkarma + 1)
+                  let updated_users =
+                    dict.insert(state.users, user.user_id, updated_user)
+                  let new_state =
+                    EngineState(
+                      ..state,
+                      comments: updated_comments,
+                      users: updated_users,
+                    )
+                  new_state
+                }
+                False -> {
+                  let updated_comment =
+                    Comment(
+                      ..parent_comment,
+                      downvotes: parent_comment.downvotes + 1,
+                    )
+                  let updated_comments =
+                    dict.insert(state.comments, parent_id, updated_comment)
 
-                let updated_user = User(..user, userkarma: user.userkarma - 1)
-                let updated_users = dict.insert(state.users, user.user_id, updated_user)
-                let new_state =EngineState(..state,
-                    comments: updated_comments,
-                    users: updated_users
-                  )
-                new_state
+                  let updated_user = User(..user, userkarma: user.userkarma - 1)
+                  let updated_users =
+                    dict.insert(state.users, user.user_id, updated_user)
+                  let new_state =
+                    EngineState(
+                      ..state,
+                      comments: updated_comments,
+                      users: updated_users,
+                    )
+                  new_state
+                }
               }
             }
+            _ -> {
+              io.println("User corresponding to the comment was never found")
+              state
+            }
           }
-          _ ->{
-            io.println("User corresponding to the comment was never found")
-            state
-          }   
-        }  
-      }   
-      _ -> {
-        io.println("the parent id belongs to no comment")
-        state
+        }
+        _ -> {
+          io.println("the parent id belongs to no comment")
+          state
         }
       }
     }
   }
 }
-
-

@@ -7,9 +7,11 @@ import gleam/io
 import gleam/list
 import gleam/otp/actor
 import gleam/result
+import gleam/time/duration
+import gleam/time/timestamp
 import pub_types.{
   type ClientMessage, type EngineMessage, type SimulatorMessage,
-  ClientJoinSubreddit, StartSimulator, Connect
+  ClientJoinSubreddit, EndSimulation, Ping, Pong, ReceivePong, StartSimulator, Connect
 }
 
 const avg_subreddits_per_user = 5
@@ -28,6 +30,9 @@ pub type SimulatorState {
     clients: Dict(Int, Subject(ClientMessage)),
     zipf_distribution_subreddits: List(Float),
     zipf_distribution_clients: List(Float),
+    // Stats
+    ping_sent_times: Dict(Int, timestamp.Timestamp),
+    response_times: Dict(Int, Float),
   )
 }
 
@@ -52,6 +57,8 @@ pub fn start_simulator(
           dict.new(),
           zipf_subreddits,
           zipf_clients,
+          dict.new(),
+          dict.new(),
         )
       let _result =
         Ok(actor.initialised(state) |> actor.returning(self_subject))
@@ -80,7 +87,35 @@ fn handle_message_simulator(
       dict.each(new_state.clients, fn(_k,v){
         process.send(v, Connect)
       })
+      start_ticker(state.self_subject)
       actor.continue(new_state)
+    }
+    Ping(iteration) -> {
+      let new_ping_sent =
+        dict.insert(state.ping_sent_times, iteration, timestamp.system_time())
+      process.send(state.engine_subject, Pong(iteration, state.self_subject))
+      let new_state = SimulatorState(..state, ping_sent_times: new_ping_sent)
+      actor.continue(new_state)
+    }
+    ReceivePong(iteration) -> {
+      let now = timestamp.system_time()
+      let then = dict.get(state.ping_sent_times, iteration)
+      case then {
+        Ok(t) -> {
+          let passed = timestamp.difference(t, now) |> duration.to_seconds()
+          let new_response_times =
+            dict.insert(state.response_times, iteration, passed)
+          let new_state =
+            SimulatorState(..state, response_times: new_response_times)
+          actor.continue(new_state)
+        }
+        _ -> actor.continue(state)
+      }
+    }
+    EndSimulation -> {
+      echo state.response_times
+      process.send(state.main_process, "Completed")
+      actor.continue(state)
     }
   }
 }
@@ -210,6 +245,23 @@ pub fn pick_loop(
         _ -> selected
       }
       pick_loop(cumulative, new_selected, total, count)
+    }
+  }
+}
+
+pub fn start_ticker(target: process.Subject(SimulatorMessage)) {
+  process.spawn(fn() { ticker_loop(target, 0) })
+}
+
+fn ticker_loop(target: process.Subject(SimulatorMessage), iteration: Int) {
+  case iteration {
+    iteration if iteration < 10 -> {
+      process.sleep(1000)
+      process.send(target, Ping(iteration))
+      ticker_loop(target, iteration + 1)
+    }
+    _ -> {
+      process.send(target, EndSimulation)
     }
   }
 }
