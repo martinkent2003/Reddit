@@ -66,7 +66,7 @@ fn handle_message_simulator(
 ) -> actor.Next(SimulatorState, SimulatorMessage) {
   case message {
     StartSimulator -> {
-      let new_state = spawn_clients(state, 1)
+      let new_state = spawn_clients(state, 1, get_timeout_values(state))
       let assert Ok(client1) = dict.get(new_state.clients, 1)
       let assert Ok(client2) = dict.get(new_state.clients, 2)
       create_subreddits(
@@ -85,23 +85,41 @@ fn handle_message_simulator(
   }
 }
 
-fn spawn_clients(state: SimulatorState, curr_user_id) {
-  case curr_user_id {
-    curr_user_id if curr_user_id <= state.num_clients -> {
+fn get_timeout_values(state: SimulatorState) {
+  let assert Ok(scale) = int.square_root(state.num_clients)
+  let timeout_values =
+    list.map(state.zipf_distribution_clients, fn(n) {
+      let wait = { 1.0 /. n } *. 0.05 /. scale
+      float.min(wait, 30.0)
+    })
+  echo timeout_values
+}
+
+fn spawn_clients(
+  state: SimulatorState,
+  curr_user_id: Int,
+  timeout_values: List(Float),
+) {
+  let timeout_value = list.first(timeout_values)
+  case curr_user_id, timeout_value {
+    curr_user_id, Ok(timeout) if curr_user_id <= state.num_clients -> {
       let assert Ok(new_client) =
         client.start_client(
           state.self_subject,
           state.engine_subject,
           "user" <> int.to_string(curr_user_id),
+          timeout,
         )
       let updated_clients =
         dict.insert(state.clients, curr_user_id, new_client.data)
       let updated_state = SimulatorState(..state, clients: updated_clients)
-      spawn_clients(updated_state, curr_user_id + 1)
+      spawn_clients(
+        updated_state,
+        curr_user_id + 1,
+        list.drop(timeout_values, 1),
+      )
     }
-    _ -> {
-      state
-    }
+    _, _ -> state
   }
 }
 
