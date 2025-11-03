@@ -38,6 +38,8 @@ fn run_simulation(
     <> int.to_string(num_clients)
     <> " clients",
   )
-  let _simulator = simulator.start_simulator(main_process, engine, num_clients)
-  process.sleep(1000)
+  let assert Ok(_simulator) =
+    simulator.start_simulator(main_process, engine, num_clients)
+  let _response = process.receive_forever(main_process)
+  Nil
 }

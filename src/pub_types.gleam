@@ -4,26 +4,23 @@ import gleam/option.{type Option}
 
 pub type User {
   User(
-    user_id: String, 
-    userkarma: Int, 
+    user_id: String,
+    userkarma: Int,
     user_subject: Subject(ClientMessage),
     subscribed_sr: List(String),
   )
 }
 
-pub type UserInbox{
-    UserInbox(
-        user_id: String,
-        inboxes: Dict(String, List(String)) // here the string is the id to the DirectMessage
-    )
+pub type UserInbox {
+  UserInbox(
+    user_id: String,
+    inboxes: Dict(String, List(String)),
+    // here the string is the id to the DirectMessage
+  )
 }
 
-pub type DirectMessage{
-    DirectMessage(
-        from_user_id: String,
-        to_user_id: String,
-        content: String,
-    )
+pub type DirectMessage {
+  DirectMessage(from_user_id: String, to_user_id: String, content: String)
 }
 
 pub type Comment {
@@ -66,6 +63,9 @@ pub type Subreddit {
 
 pub type SimulatorMessage {
   StartSimulator
+  Ping(iteration: Int)
+  ReceivePong(iteration: Int)
+  EndSimulation
 }
 
 pub type ClientMessage {
@@ -97,7 +97,11 @@ pub type EngineMessage {
   PostInSubReddit(user_id: String, sr_id: String, post_text: String)
 
   //Comment
-  CommentInSubReddit(parent_id: String, user_id: String, comment_message: String)
+  CommentInSubReddit(
+    parent_id: String,
+    user_id: String,
+    comment_message: String,
+  )
 
   //Upvote/Downvote(on comment or post)
   Upvote(parent_id: String)
@@ -113,4 +117,6 @@ pub type EngineMessage {
   GetInbox(user_id: String, requester: Subject(ClientMessage))
 
   PrintSubredditSizes
+
+  Pong(iteration: Int, return_to: Subject(SimulatorMessage))
 }
