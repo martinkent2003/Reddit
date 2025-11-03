@@ -75,42 +75,29 @@ pub type ClientMessage {
   DirectMessageInbox(messages: Dict(String, DirectMessage))
   ClientJoinSubreddit(List(String))
   ReceiveFeed(posts: List(Post))
+  ActivitySim
+  ActOnComment(comment: Comment)
 }
 
 pub type EngineMessage {
   RegisterAccount(user_id: String, requester: Subject(ClientMessage))
-
   //SubReddit needs an identifier reddit.com/subreddit
   CreateSubReddit(sr_id: String, requester: Subject(ClientMessage))
-  JoinSubreddit(
-    user_id: String,
-    sr_id: String,
-    requester: Subject(ClientMessage),
-  )
-  LeaveSubreddit(
-    user_id: String,
-    sr_id: String,
-    requester: Subject(ClientMessage),
-  )
-
+  JoinSubreddit(user_id: String, sr_id: String, requester: Subject(ClientMessage))
+  LeaveSubreddit(user_id: String, sr_id: String, requester: Subject(ClientMessage))
   //Posts
   PostInSubReddit(user_id: String, sr_id: String, post_text: String)
-
   //Comment
   CommentInSubReddit(parent_id: String, user_id: String, comment_message: String)
-
+  GetComment(comment_id: String, requester:Subject(ClientMessage))
   //Upvote/Downvote(on comment or post)
   Upvote(parent_id: String)
   Downvote(parent_id: String)
   RequestKarma(user_id: String, requester: Subject(ClientMessage))
-
   //Feed
   RequestFeed(user_id: String, requester: Subject(ClientMessage))
-
   //Messages
   SendMessage(from_user_id: String, to_user_id: String, message: String)
-
-  GetInbox(user_id: String, requester: Subject(ClientMessage))
-
+  RequestInbox(user_id: String, requester: Subject(ClientMessage))
   PrintSubredditSizes
 }

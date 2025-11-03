@@ -9,10 +9,10 @@ import gleam/string
 import pub_types.{
   type Comment, type EngineMessage, type Post, type Subreddit, type User, type UserInbox, UserInbox,
    type DirectMessage, DirectMessage, User,
-  Comment, CommentInSubReddit, CreateSubReddit, Downvote, GetInbox,
+  Comment, CommentInSubReddit, CreateSubReddit, Downvote, RequestInbox,
   JoinSubreddit, LeaveSubreddit, Post, PostInSubReddit, RegisterAccount,
   RequestFeed, RequestKarma, SendMessage, Subreddit, Upvote, DirectMessageInbox,
-  ReceiveFeed
+  ReceiveFeed, GetComment, ActOnComment
 }
 
 pub type EngineState {
@@ -157,6 +157,18 @@ fn handle_message_engine(
           new_state
         )
     }
+    GetComment(comment_id, requester)->{
+      let comment_exists = dict.get(state.comments, comment_id)
+      case comment_exists{
+        Ok(comment)->{
+          process.send(requester, ActOnComment(comment))
+        }
+        _->{
+          io.println(comment_id <> "does not exist, failed GetCommment")
+        }
+      }
+      actor.continue(state)
+    }
     Upvote(parent_id) -> {
       io.println("upvoting"<>parent_id)
       let new_state = update_votes(True, parent_id, state)
@@ -241,7 +253,7 @@ fn handle_message_engine(
         }
       }
     }
-    GetInbox(user_id, requester) -> {
+    RequestInbox(user_id, requester) -> {
       let check_user = dict.get(state.users_inbox, user_id)
       case check_user {
         Ok(user_inbox)->{

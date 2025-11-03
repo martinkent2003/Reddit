@@ -9,7 +9,7 @@ import gleam/otp/actor
 import gleam/result
 import pub_types.{
   type ClientMessage, type EngineMessage, type SimulatorMessage,
-  ClientJoinSubreddit, StartSimulator,
+  ClientJoinSubreddit, StartSimulator, Connect
 }
 
 const avg_subreddits_per_user = 5
@@ -68,7 +68,6 @@ fn handle_message_simulator(
     StartSimulator -> {
       let new_state = spawn_clients(state, 1, get_timeout_values(state))
       let assert Ok(client1) = dict.get(new_state.clients, 1)
-      let assert Ok(client2) = dict.get(new_state.clients, 2)
       create_subreddits(
         new_state.num_subreddits,
         new_state.engine_subject,
@@ -78,8 +77,9 @@ fn handle_message_simulator(
       assign_subreddits(new_state)
       process.sleep(100)
       process.send(new_state.engine_subject, pub_types.PrintSubredditSizes)
-      process.send(client1, pub_types.Connect)
-      process.send(client2, pub_types.Connect)
+      dict.each(new_state.clients, fn(_k,v){
+        process.send(v, Connect)
+      })
       actor.continue(new_state)
     }
   }
