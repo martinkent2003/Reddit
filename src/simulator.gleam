@@ -70,7 +70,7 @@ fn handle_message_simulator(
       let assert Ok(client1) = dict.get(new_state.clients, 1)
       let assert Ok(client2) = dict.get(new_state.clients, 2)
       create_subreddits(
-        new_state.num_clients,
+        new_state.num_subreddits,
         new_state.engine_subject,
         client1,
       )
