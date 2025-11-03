@@ -7,12 +7,12 @@ import gleam/otp/actor
 import gleam/string
 
 import pub_types.{
-  type Comment, type EngineMessage, type Post, type Subreddit, type User, type UserInbox, UserInbox,
-   type DirectMessage, DirectMessage, User,
-  Comment, CommentInSubReddit, CreateSubReddit, Downvote, RequestInbox,
-  JoinSubreddit, LeaveSubreddit, Post, PostInSubReddit, RegisterAccount,
-  RequestFeed, RequestKarma, SendMessage, Subreddit, Upvote, DirectMessageInbox,
-  ReceiveFeed, ReceiveKarma, Pong, GetComment, ActOnComment
+  type Comment, type DirectMessage, type EngineMessage, type Post,
+  type Subreddit, type User, type UserInbox, ActOnComment, Comment,
+  CommentInSubReddit, CreateSubReddit, DirectMessage, DirectMessageInbox,
+  Downvote, GetComment, JoinSubreddit, LeaveSubreddit, Pong, Post,
+  PostInSubReddit, ReceiveFeed, ReceiveKarma, RegisterAccount, RequestFeed,
+  RequestInbox, RequestKarma, SendMessage, Subreddit, Upvote, User, UserInbox,
 }
 
 pub type EngineState {
@@ -175,13 +175,13 @@ fn handle_message_engine(
       let new_state = update_comments(new_comment, state)
       actor.continue(new_state)
     }
-    GetComment(comment_id, requester)->{
+    GetComment(comment_id, requester) -> {
       let comment_exists = dict.get(state.comments, comment_id)
-      case comment_exists{
-        Ok(comment)->{
+      case comment_exists {
+        Ok(comment) -> {
           process.send(requester, ActOnComment(comment))
         }
-        _->{
+        _ -> {
           //io.println(comment_id <> "does not exist, failed GetCommment")
           Nil
         }
@@ -318,31 +318,36 @@ fn handle_message_engine(
       actor.continue(state)
     }
     Pong(iteration, return_to) -> {
-      io.print("Posts [" <> int.to_string(dict.size(state.posts)))
-      io.print("] Comments [" <> int.to_string(dict.size(state.comments)))
-      io.println("] DMs [" <> int.to_string(dict.size(state.direct_messages)) <> "]")
-      process.send(return_to, pub_types.ReceivePong(iteration))
+      let posts_comments_dms = #(
+        dict.size(state.posts),
+        dict.size(state.comments),
+        dict.size(state.direct_messages),
+      )
+      process.send(
+        return_to,
+        pub_types.ReceivePong(iteration, posts_comments_dms),
+      )
       actor.continue(state)
     }
   }
 }
 
-fn print_subreddit_size(state: EngineState, i: Int, n: Int) {
-  case i > n {
-    True -> Nil
-    False -> {
-      let assert Ok(sr) =
-        dict.get(state.subreddits, "subreddit" <> int.to_string(i))
-      io.println(
-        "subreddit"
-        <> int.to_string(i)
-        <> ": "
-        <> int.to_string(list.length(sr.members)),
-      )
-      print_subreddit_size(state, i + 1, n)
-    }
-  }
-}
+// fn print_subreddit_size(state: EngineState, i: Int, n: Int) {
+//   case i > n {
+//     True -> Nil
+//     False -> {
+//       let assert Ok(sr) =
+//         dict.get(state.subreddits, "subreddit" <> int.to_string(i))
+//       io.println(
+//         "subreddit"
+//         <> int.to_string(i)
+//         <> ": "
+//         <> int.to_string(list.length(sr.members)),
+//       )
+//       print_subreddit_size(state, i + 1, n)
+//     }
+//   }
+// }
 
 fn update_comments(new_comment: Comment, state: EngineState) -> EngineState {
   let parent_is_post = string.starts_with(new_comment.parent_id, "post")

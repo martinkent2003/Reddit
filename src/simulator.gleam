@@ -11,14 +11,18 @@ import gleam/time/duration
 import gleam/time/timestamp
 import pub_types.{
   type ClientMessage, type EngineMessage, type SimulatorMessage,
-  ClientJoinSubreddit, EndSimulation, Ping, Pong, ReceivePong, StartSimulator, Connect
+  ClientJoinSubreddit, Connect, EndSimulation, Ping, Pong, ReceivePong,
+  StartSimulator,
 }
+import simplifile
 
 const avg_subreddits_per_user = 5
 
 const zipf_s_subreddits = 1.0
 
 const zipf_s_clients = 0.5
+
+const sim_runtime = 120
 
 pub type SimulatorState {
   SimulatorState(
@@ -32,7 +36,7 @@ pub type SimulatorState {
     zipf_distribution_clients: List(Float),
     // Stats
     ping_sent_times: Dict(Int, timestamp.Timestamp),
-    response_times: Dict(Int, Float),
+    engine_values: #(Int, Int, Int),
   )
 }
 
@@ -58,7 +62,7 @@ pub fn start_simulator(
           zipf_subreddits,
           zipf_clients,
           dict.new(),
-          dict.new(),
+          #(0, 0, 0),
         )
       let _result =
         Ok(actor.initialised(state) |> actor.returning(self_subject))
@@ -84,9 +88,10 @@ fn handle_message_simulator(
       assign_subreddits(new_state)
       process.sleep(100)
       process.send(new_state.engine_subject, pub_types.PrintSubredditSizes)
-      dict.each(new_state.clients, fn(_k,v){
-        process.send(v, Connect)
-      })
+      dict.each(new_state.clients, fn(_k, v) { process.send(v, Connect) })
+      io.println(
+        "Time, Engine Delay, Posts, Comments, Messages, DeltaPosts, DeltaComments, DeltaMessages",
+      )
       start_ticker(state.self_subject)
       actor.continue(new_state)
     }
@@ -97,24 +102,43 @@ fn handle_message_simulator(
       let new_state = SimulatorState(..state, ping_sent_times: new_ping_sent)
       actor.continue(new_state)
     }
-    ReceivePong(iteration) -> {
+    ReceivePong(iteration, values) -> {
       let now = timestamp.system_time()
       let then = dict.get(state.ping_sent_times, iteration)
       case then {
         Ok(t) -> {
           let passed = timestamp.difference(t, now) |> duration.to_seconds()
-          let new_response_times =
-            dict.insert(state.response_times, iteration, passed)
-          let new_state =
-            SimulatorState(..state, response_times: new_response_times)
+          let delta_values = #(
+            values.0 - state.engine_values.0,
+            values.1 - state.engine_values.1,
+            values.2 - state.engine_values.2,
+          )
+          let new_state = SimulatorState(..state, engine_values: values)
+          io.println(
+            int.to_string(iteration)
+            <> ", "
+            <> float.to_string(passed)
+            <> ", "
+            <> int.to_string(values.0)
+            <> ", "
+            <> int.to_string(values.1)
+            <> ", "
+            <> int.to_string(values.2)
+            <> ", "
+            <> int.to_string(delta_values.0)
+            <> ", "
+            <> int.to_string(delta_values.1)
+            <> ", "
+            <> int.to_string(delta_values.2),
+          )
           actor.continue(new_state)
         }
         _ -> actor.continue(state)
       }
     }
     EndSimulation -> {
-      echo state.response_times
       process.send(state.main_process, "Completed")
+      let assert Ok(_) = simplifile.write("done", to: "output.txt")
       actor.continue(state)
     }
   }
@@ -122,12 +146,11 @@ fn handle_message_simulator(
 
 fn get_timeout_values(state: SimulatorState) {
   let assert Ok(scale) = int.square_root(state.num_clients)
-  let timeout_values =
+  let _timeout_values =
     list.map(state.zipf_distribution_clients, fn(n) {
       let wait = { 1.0 /. n } *. 0.05 /. scale
       float.min(wait, 30.0)
     })
-  echo timeout_values
 }
 
 fn spawn_clients(
@@ -199,7 +222,7 @@ fn assign_subreddits(state: SimulatorState) {
     list.map(state.zipf_distribution_clients, fn(w) {
       float.round(w *. total_joins) |> int.clamp(1, state.num_subreddits)
     })
-  echo list.fold(subreddits_to_join, 0, fn(x, y) { x + y })
+  //echo list.fold(subreddits_to_join, 0, fn(x, y) { x + y })
 
   let clients_list =
     dict.to_list(state.clients)
@@ -255,7 +278,7 @@ pub fn start_ticker(target: process.Subject(SimulatorMessage)) {
 
 fn ticker_loop(target: process.Subject(SimulatorMessage), iteration: Int) {
   case iteration {
-    iteration if iteration < 10 -> {
+    iteration if iteration < sim_runtime -> {
       process.sleep(1000)
       process.send(target, Ping(iteration))
       ticker_loop(target, iteration + 1)

@@ -1,19 +1,17 @@
-import gleam/float
-import tick
-import gleam/int
 import gleam/dict.{type Dict}
 import gleam/erlang/process.{type Subject}
-import gleam/io
+import gleam/float
+import gleam/int
 import gleam/list
 import gleam/otp/actor
-import gleam/string
 import pub_types.{
-  type ClientMessage, type Comment, type EngineMessage, type Post, type DirectMessage, DirectMessage,
-  type SimulatorMessage, ClientJoinSubreddit, CommentInSubReddit, Connect,
-  CreateSubReddit, DirectMessageInbox, Downvote, RequestInbox, JoinSubreddit,
-  PostInSubReddit, ReceiveFeed, RegisterAccount, RequestFeed, RequestKarma,
-  SendMessage, Upvote, ActivitySim, ActOnComment, GetComment, ReceiveKarma
+  type ClientMessage, type DirectMessage, type EngineMessage, type Post,
+  type SimulatorMessage, ActOnComment, ActivitySim, ClientJoinSubreddit,
+  CommentInSubReddit, Connect, DirectMessageInbox, Downvote, GetComment,
+  JoinSubreddit, PostInSubReddit, ReceiveFeed, ReceiveKarma, RegisterAccount,
+  RequestFeed, RequestInbox, SendMessage, Upvote,
 }
+import tick
 
 pub type ClientState {
   ClientState(
@@ -25,7 +23,7 @@ pub type ClientState {
     sr_ids: List(String),
     feed: List(Post),
     karma: Int,
-    inbox : Dict(String, DirectMessage)
+    inbox: Dict(String, DirectMessage),
   )
 }
 
@@ -48,7 +46,7 @@ pub fn start_client(
           [],
           [],
           0,
-          dict.new()
+          dict.new(),
         )
       let _result =
         Ok(actor.initialised(state) |> actor.returning(self_subject))
@@ -64,7 +62,10 @@ fn handle_message_client(
   case message {
     Connect -> {
       //test_functions(state)
-      tick.start_ticker(state.self_subject, float.round(state.activity_timeout *. 1000.0))
+      tick.start_ticker(
+        state.self_subject,
+        float.round(state.activity_timeout *. 1000.0),
+      )
       actor.continue(state)
     }
     ReceiveFeed(posts) -> {
@@ -84,7 +85,6 @@ fn handle_message_client(
       actor.continue(updated_state)
     }
     ClientJoinSubreddit(sr_ids) -> {
-
       list.each(sr_ids, fn(sr_id) {
         process.send(
           state.engine_subject,
@@ -94,37 +94,53 @@ fn handle_message_client(
       let updated_state = ClientState(..state, sr_ids: sr_ids)
       actor.continue(updated_state)
     }
-    ActivitySim()->{
+    ActivitySim -> {
       //activity 0:Message 1:Post 2:ActonPost 3:ActOnComment(req comment) 4:GetFeed 5:GetInbox
       case int.random(6) {
-        0 ->{
+        0 -> {
           //Reply to a DM
           let inbox_size = dict.size(state.inbox)
-          case inbox_size{
-            0->{
+          case inbox_size {
+            0 -> {
               //Get a user_id from random post and send them a message
               let first_post = list.first(state.feed)
               case first_post {
-                Ok(post)->{
-                  let message = "This is a message being sent from "<> state.user_id <> " to the user: "<> post.user_id <> " from post: "<> post.post_id
-                  process.send(state.engine_subject, SendMessage(state.user_id, post.user_id, message ))
+                Ok(post) -> {
+                  let message =
+                    "This is a message being sent from "
+                    <> state.user_id
+                    <> " to the user: "
+                    <> post.user_id
+                    <> " from post: "
+                    <> post.post_id
+                  process.send(
+                    state.engine_subject,
+                    SendMessage(state.user_id, post.user_id, message),
+                  )
                 }
-                _->{
+                _ -> {
                   //io.println("Client "<>state.user_id<>" no feed, no inbox, cannot send message")
                   Nil
                 }
               }
             }
-            _->{
+            _ -> {
               //Get a random message from inbox and reply to from_user
               let inbox = dict.keys(state.inbox)
               let first_inbox = list.first(inbox)
               case first_inbox {
-                Ok(target_id)->{
-                  let message = "This is a message being sent from "<> state.user_id <> " to the user: "<> target_id
-                  process.send(state.engine_subject, SendMessage(state.user_id, target_id, message))
+                Ok(target_id) -> {
+                  let message =
+                    "This is a message being sent from "
+                    <> state.user_id
+                    <> " to the user: "
+                    <> target_id
+                  process.send(
+                    state.engine_subject,
+                    SendMessage(state.user_id, target_id, message),
+                  )
                 }
-                _->{
+                _ -> {
                   //io.println("No messages in inbox SOMETHING IS WEIRD")
                   Nil
                 }
@@ -133,12 +149,20 @@ fn handle_message_client(
             }
           }
         }
-        1 ->{
+        1 -> {
           //Make Post
           let ind = int.random(list.length(state.sr_ids))
           let sr_id = list.first(list.drop(state.sr_ids, ind))
           case sr_id {
-            Ok(sr_id) -> process.send(state.engine_subject, PostInSubReddit(state.user_id, sr_id, "Post by " <> state.user_id <> " in " <> sr_id))
+            Ok(sr_id) ->
+              process.send(
+                state.engine_subject,
+                PostInSubReddit(
+                  state.user_id,
+                  sr_id,
+                  "Post by " <> state.user_id <> " in " <> sr_id,
+                ),
+              )
             _ -> {
               //io.println("SOMETHING IS WEIRD choosing a subreddit to post to")
               Nil
@@ -146,21 +170,25 @@ fn handle_message_client(
           }
           Nil
         }
-        2 ->{
+        2 -> {
           //Comment, Upvote, Downvote on post
           let ind = int.random(list.length(state.feed))
           let post = list.first(list.drop(state.feed, ind))
           case post {
             Ok(post) -> {
-                act_on_parent_id(post.post_id, state.user_id, state.engine_subject)
+              act_on_parent_id(
+                post.post_id,
+                state.user_id,
+                state.engine_subject,
+              )
             }
-            _->{
+            _ -> {
               //io.println("Client "<>state.user_id<>" has no posts to interact with in their feed :(")
               Nil
             }
           }
         }
-        3 ->{
+        3 -> {
           //Comment, Upvote, Downvote on comment (handled in received comment)
           let ind = int.random(list.length(state.feed))
           let post_exists = list.first(list.drop(state.feed, ind))
@@ -169,53 +197,69 @@ fn handle_message_client(
               let ind2 = int.random(list.length(post.comments))
               let comment_exists = list.first(list.drop(post.comments, ind2))
               case comment_exists {
-                Ok(comment) ->{
-                  process.send(state.engine_subject, GetComment(comment, state.self_subject))
+                Ok(comment) -> {
+                  process.send(
+                    state.engine_subject,
+                    GetComment(comment, state.self_subject),
+                  )
                 }
-                _->{
+                _ -> {
                   //io.println("Comment not existing under post: Activity commenting")
                   Nil
                 }
               }
             }
-            _->{
+            _ -> {
               //io.println("Client "<>state.user_id<>" has no posts to interact with in their feed :(")
               Nil
             }
           }
         }
-        4->{
-          process.send(state.engine_subject, RequestFeed(state.user_id, state.self_subject))
+        4 -> {
+          process.send(
+            state.engine_subject,
+            RequestFeed(state.user_id, state.self_subject),
+          )
         }
-        5->{
-          process.send(state.engine_subject, RequestInbox(state.user_id, state.self_subject))
+        5 -> {
+          process.send(
+            state.engine_subject,
+            RequestInbox(state.user_id, state.self_subject),
+          )
         }
-        _->{
-
+        _ -> {
+          Nil
         }
       }
       actor.continue(state)
     }
-    ActOnComment(comment)->{
+    ActOnComment(comment) -> {
       let recurse = int.random(3)
-      case recurse{
-        0->{
+      case recurse {
+        0 -> {
           //we either go into the comments and request another nested comment
           let ind2 = int.random(list.length(comment.comments))
           let comment_exists = list.first(list.drop(comment.comments, ind2))
           case comment_exists {
-            Ok(comment) ->{
-              process.send(state.engine_subject, GetComment(comment, state.self_subject))
+            Ok(comment) -> {
+              process.send(
+                state.engine_subject,
+                GetComment(comment, state.self_subject),
+              )
             }
-            _->{
+            _ -> {
               //io.println("Comment not existing under comment: Activity commenting")
               Nil
             }
           }
         }
-        _->{
+        _ -> {
           //or act on one of the existing comments (more likely to happen)
-          act_on_parent_id(comment.comment_id, state.user_id, state.engine_subject)
+          act_on_parent_id(
+            comment.comment_id,
+            state.user_id,
+            state.engine_subject,
+          )
         }
       }
       actor.continue(state)
@@ -227,85 +271,94 @@ fn handle_message_client(
   }
 }
 
-fn test_functions(state: ClientState) {
-  process.send(
-    state.engine_subject,
-    CreateSubReddit("subreddit 1", state.self_subject),
-  )
-  process.sleep(200)
-  process.send(
-    state.engine_subject,
-    PostInSubReddit(state.user_id, "subreddit 1", "First post ever"),
-  )
-  process.sleep(20)
-  process.send(
-    state.engine_subject,
-    CommentInSubReddit("post0", state.user_id, "First comment ever"),
-  )
-  process.send(
-    state.engine_subject,
-    CommentInSubReddit("post0", state.user_id, "Second comment ever"),
-  )
-  process.sleep(20)
-  process.send(
-    state.engine_subject,
-    CommentInSubReddit(
-      "comment0",
-      state.user_id,
-      "Replying to the first comment ever",
-    ),
-  )
-  process.sleep(20)
-  process.send(state.engine_subject, Upvote("comment0"))
-  process.sleep(20)
-  process.send(state.engine_subject, Upvote("post0"))
-  process.send(state.engine_subject, Downvote("comment1"))
-  process.sleep(20)
-  process.send(
-    state.engine_subject,
-    RequestKarma(state.user_id, state.self_subject),
-  )
-  process.sleep(20)
-  case state.user_id {
-    "1" -> {
+// fn test_functions(state: ClientState) {
+//   process.send(
+//     state.engine_subject,
+//     CreateSubReddit("subreddit 1", state.self_subject),
+//   )
+//   process.sleep(200)
+//   process.send(
+//     state.engine_subject,
+//     PostInSubReddit(state.user_id, "subreddit 1", "First post ever"),
+//   )
+//   process.sleep(20)
+//   process.send(
+//     state.engine_subject,
+//     CommentInSubReddit("post0", state.user_id, "First comment ever"),
+//   )
+//   process.send(
+//     state.engine_subject,
+//     CommentInSubReddit("post0", state.user_id, "Second comment ever"),
+//   )
+//   process.sleep(20)
+//   process.send(
+//     state.engine_subject,
+//     CommentInSubReddit(
+//       "comment0",
+//       state.user_id,
+//       "Replying to the first comment ever",
+//     ),
+//   )
+//   process.sleep(20)
+//   process.send(state.engine_subject, Upvote("comment0"))
+//   process.sleep(20)
+//   process.send(state.engine_subject, Upvote("post0"))
+//   process.send(state.engine_subject, Downvote("comment1"))
+//   process.sleep(20)
+//   process.send(
+//     state.engine_subject,
+//     RequestKarma(state.user_id, state.self_subject),
+//   )
+//   process.sleep(20)
+//   case state.user_id {
+//     "1" -> {
+//       process.send(
+//         state.engine_subject,
+//         SendMessage(state.user_id, "2", "Hello from user 1"),
+//       )
+//     }
+//     "2" -> {
+//       process.send(
+//         state.engine_subject,
+//         SendMessage(state.user_id, "1", "Hello from user 2"),
+//       )
+//     }
+//     _ -> {
+//       Nil
+//     }
+//   }
+//   process.sleep(20)
+//   process.send(
+//     state.engine_subject,
+//     RequestInbox(state.user_id, state.self_subject),
+//   )
+//   process.sleep(20)
+//   process.send(
+//     state.engine_subject,
+//     RequestFeed(state.user_id, state.self_subject),
+//   )
+// }
+
+pub fn act_on_parent_id(
+  parent_id: String,
+  user_id: String,
+  engine: Subject(EngineMessage),
+) {
+  case int.random(3) {
+    0 ->
       process.send(
-        state.engine_subject,
-        SendMessage(state.user_id, "2", "Hello from user 1"),
+        engine,
+        CommentInSubReddit(
+          parent_id,
+          user_id,
+          "Comment by " <> user_id <> " on " <> parent_id,
+        ),
       )
-    }
-    "2" -> {
-      process.send(
-        state.engine_subject,
-        SendMessage(state.user_id, "1", "Hello from user 2"),
-      )
-    }
-    _ -> {
-      Nil
-    }
+    1 -> process.send(engine, Upvote(parent_id))
+    2 -> process.send(engine, Downvote(parent_id))
+    _ -> Nil
   }
-  process.sleep(20)
-  process.send(
-    state.engine_subject,
-    RequestInbox(state.user_id, state.self_subject),
-  )
-  process.sleep(20)
-  process.send(
-    state.engine_subject,
-    RequestFeed(state.user_id, state.self_subject),
-  )
 }
-
-
-
-pub fn act_on_parent_id(parent_id: String, user_id: String, engine: Subject(EngineMessage)){
-    case int.random(3) {
-      0 -> process.send(engine, CommentInSubReddit(parent_id, user_id, "Comment by " <> user_id <> " on " <> parent_id))
-      1 -> process.send(engine, Upvote(parent_id))
-      2 -> process.send(engine, Downvote(parent_id))
-      _ -> Nil
-    }
-}
-
 // pub fn print_post(post: Post) {
 //   io.println("-> " <> post.post_id <> ": " <> post.post_content)
 // }
