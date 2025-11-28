@@ -1,3 +1,7 @@
+import mist
+import app/router
+import wisp/wisp_mist
+import wisp
 import argv
 import engine
 import gleam/erlang/process
@@ -7,26 +11,23 @@ import pub_types.{type EngineMessage}
 import simulator
 
 pub fn main() -> Nil {
-  let args = argv.load().arguments
-  case args {
-    [arg1] -> {
-      let num_clients = int.parse(arg1)
-      case num_clients {
-        Ok(num_clients) -> {
-          let main_process = process.new_subject()
-          let assert Ok(engine) = engine.start_engine()
-          run_simulation(main_process, engine.data, num_clients)
-        }
-        _ -> {
-          io.println("Argument must be of type integer")
-        }
-      }
-    }
-    _ -> {
-      io.println("Please provide one argument for number of users")
-    }
-  }
+  let _main_process = process.new_subject()
+  let assert Ok(engine) = engine.start_engine()
+  // NOT STARTING SIMULATOR 
+  //run_simulation(main_process, engine.data, num_clients)
+  wisp.configure_logger()
+  let secret_key_base = wisp.random_string(64)
+
+  let assert Ok(_) =
+    wisp_mist.handler(fn(req) {router.handle_request(req, engine.data)}, secret_key_base)
+    |> mist.new
+    |> mist.port(8000)
+    |> mist.start
+
+  process.sleep_forever()
+  Nil
 }
+        
 
 fn run_simulation(
   main_process: process.Subject(String),

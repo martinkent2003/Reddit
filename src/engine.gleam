@@ -1,3 +1,4 @@
+import wisp
 import gleam/dict.{type Dict}
 import gleam/erlang/process
 import gleam/int
@@ -54,13 +55,14 @@ fn handle_message_engine(
 ) -> actor.Next(EngineState, EngineMessage) {
   case message {
     RegisterAccount(user_id, requester) -> {
+      wisp.log_debug("registering")
       let new_user = User(user_id, 0, requester, [])
       let updated_users = dict.insert(state.users, user_id, new_user)
       let new_inbox = UserInbox(user_id, dict.new())
       let updated_inboxes = dict.insert(state.users_inbox, user_id, new_inbox)
       let new_state =
         EngineState(..state, users: updated_users, users_inbox: updated_inboxes)
-      //io.println("User: " <> user_id <> " initialized")
+      io.println("User: " <> user_id <> " initialized")
       actor.continue(new_state)
     }
     CreateSubReddit(sr_id, _requester) -> {
