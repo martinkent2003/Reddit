@@ -154,7 +154,7 @@ fn handle_message_engine(
         }
       }
     }
-    PostInSubReddit(user_id, sr_id, post_text) -> {
+    PostInSubReddit(user_id, sr_id, post_text, requester) -> {
       let exists = dict.get(state.subreddits, sr_id)
       case exists {
         Ok(subreddit) -> {
@@ -174,9 +174,11 @@ fn handle_message_engine(
               posts: updated_posts,
               subreddits: updated_subreddits,
             )
+          actor.send(requester, Ack(user_id <> " successfully posted in " <> sr_id <> ": " <>post_text))
           actor.continue(new_state)
         }
         _ -> {
+          actor.send(requester, Nack(user_id <> " failed to post, " <> sr_id <> "does not exist"))
           actor.continue(state)
         }
       }

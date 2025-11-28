@@ -101,7 +101,7 @@ pub type EngineMessage {
     requester: Subject(ClientMessage),
   )
   //Posts
-  PostInSubReddit(user_id: String, sr_id: String, post_text: String)
+  PostInSubReddit(user_id: String, sr_id: String, post_text: String, requester: Subject(ClientMessage))
   //Comment
   CommentInSubReddit(
     parent_id: String,

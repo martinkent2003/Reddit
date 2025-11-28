@@ -161,6 +161,7 @@ fn handle_message_client(
                   state.user_id,
                   sr_id,
                   "Post by " <> state.user_id <> " in " <> sr_id,
+                  state.self_subject
                 ),
               )
             _ -> {
