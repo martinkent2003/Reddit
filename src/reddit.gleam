@@ -1,14 +1,15 @@
-import mist
 import app/router
-import wisp/wisp_mist
-import wisp
 import argv
+import cli
 import engine
 import gleam/erlang/process
 import gleam/int
 import gleam/io
+import mist
 import pub_types.{type EngineMessage}
 import simulator
+import wisp
+import wisp/wisp_mist
 
 pub fn main() -> Nil {
   let _main_process = process.new_subject()
@@ -19,15 +20,20 @@ pub fn main() -> Nil {
   let secret_key_base = wisp.random_string(64)
 
   let assert Ok(_) =
-    wisp_mist.handler(fn(req) {router.handle_request(req, engine.data)}, secret_key_base)
+    wisp_mist.handler(
+      fn(req) { router.handle_request(req, engine.data) },
+      secret_key_base,
+    )
     |> mist.new
     |> mist.port(8000)
     |> mist.start
 
+  process.sleep(1000)
+  cli.start_cli()
+
   process.sleep_forever()
   Nil
 }
-        
 
 fn run_simulation(
   main_process: process.Subject(String),
