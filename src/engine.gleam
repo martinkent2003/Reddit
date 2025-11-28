@@ -1,4 +1,3 @@
-import wisp
 import gleam/dict.{type Dict}
 import gleam/erlang/process
 import gleam/int
@@ -6,6 +5,7 @@ import gleam/io
 import gleam/list
 import gleam/otp/actor
 import gleam/string
+import wisp
 
 import pub_types.{
   type Comment, type DirectMessage, type EngineMessage, type Post,
@@ -63,6 +63,7 @@ fn handle_message_engine(
       let new_state =
         EngineState(..state, users: updated_users, users_inbox: updated_inboxes)
       io.println("User: " <> user_id <> " initialized")
+      actor.send(requester, pub_types.RegisterAccountAck(["one", "two"]))
       actor.continue(new_state)
     }
     CreateSubReddit(sr_id, _requester) -> {

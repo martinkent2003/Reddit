@@ -70,7 +70,7 @@ pub type SimulatorMessage {
 pub type ClientMessage {
   Connect
   Shutdown
-  RegisterAccountAck
+  RegisterAccountAck(messages: List(String))
   DirectMessageInbox(messages: Dict(String, DirectMessage))
   ClientJoinSubreddit(List(String))
   ReceiveFeed(posts: List(Post))

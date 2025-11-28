@@ -1,13 +1,16 @@
-import gleam/list
-import gleam/result
+import app/web
 import gleam/erlang/process
 import gleam/http.{Get, Post}
-import app/web
+import gleam/list
+import gleam/result
 import wisp.{type Request, type Response}
 
-import pub_types.{type EngineMessage, type ClientMessage, RegisterAccount}
+import pub_types.{type ClientMessage, type EngineMessage, RegisterAccount}
 
-pub fn handle_request(req: Request, engine: process.Subject(EngineMessage)) -> Response {
+pub fn handle_request(
+  req: Request,
+  engine: process.Subject(EngineMessage),
+) -> Response {
   use req <- web.middleware(req)
   case wisp.path_segments(req) {
     // This matches `/`.
@@ -17,9 +20,9 @@ pub fn handle_request(req: Request, engine: process.Subject(EngineMessage)) -> R
     //our implementation (not example wisp code anymore)
     //TODO somehow get the engine message in here and get a 1:1 for each engine message
     ["register_account"] -> register_account(req, engine)
+
     //["create_subreddit"] -> create_subreddit(req, id)
     //
-
     // This matches all other paths.
     _ -> wisp.not_found()
   }
@@ -66,18 +69,23 @@ fn show_comment(req: Request, id: String) -> Response {
   |> wisp.html_body("Comment with id " <> id)
 }
 
-
-fn register_account(req: Request, engine: process.Subject(EngineMessage)) -> Response {
+fn register_account(
+  req: Request,
+  engine: process.Subject(EngineMessage),
+) -> Response {
   use <- wisp.require_method(req, Post)
   use formdata <- wisp.require_form(req)
   // Now you can send messages to the engine:
   let result = {
     use user_id <- result.try(list.key_find(formdata.values, "user_id"))
-    //process.send(engine, RegisterAccount(user_id, ))
+    let subject = process.new_subject()
+    process.send(engine, RegisterAccount(user_id, subject))
+    let response = process.receive_forever(subject)
+    echo response
     wisp.log_alert("figure out how to send process here ")
     Ok("well maybe idk yet")
   }
-  
+
   case result {
     Ok(content) -> {
       wisp.ok()
