@@ -13,7 +13,7 @@ import pub_types.{
   CommentInSubReddit, CreateSubReddit, DirectMessage, DirectMessageInbox,
   Downvote, GetComment, JoinSubreddit, LeaveSubreddit, Pong, Post,
   PostInSubReddit, ReceiveFeed, ReceiveKarma, RegisterAccount, RequestFeed,
-  RequestInbox, RequestKarma, SendMessage, Subreddit, Upvote, User, UserInbox,
+  RequestInbox, RequestKarma, SendMessage, Subreddit, Upvote, User, UserInbox, Nack, Ack, ListAck
 }
 
 pub type EngineState {
@@ -55,33 +55,44 @@ fn handle_message_engine(
 ) -> actor.Next(EngineState, EngineMessage) {
   case message {
     RegisterAccount(user_id, requester) -> {
-      wisp.log_debug("registering")
-      let new_user = User(user_id, 0, requester, [])
-      let updated_users = dict.insert(state.users, user_id, new_user)
-      let new_inbox = UserInbox(user_id, dict.new())
-      let updated_inboxes = dict.insert(state.users_inbox, user_id, new_inbox)
-      let new_state =
-        EngineState(..state, users: updated_users, users_inbox: updated_inboxes)
-      io.println("User: " <> user_id <> " initialized")
-      actor.send(requester, pub_types.RegisterAccountAck(["one", "two"]))
-      actor.continue(new_state)
+      let already_exists = dict.get(state.users, user_id)
+      case already_exists{
+        Ok(user) -> {
+          actor.send(requester, Nack(user.user_id <> " already existed"))
+          actor.continue(state)
+        }
+        _->{
+          let new_user = User(user_id, 0, requester, [])
+          let updated_users = dict.insert(state.users, user_id, new_user)
+          let new_inbox = UserInbox(user_id, dict.new())
+          let updated_inboxes = dict.insert(state.users_inbox, user_id, new_inbox)
+          let new_state =
+            EngineState(..state, users: updated_users, users_inbox: updated_inboxes)
+          actor.send(requester, Ack(user_id <> " created"))
+          actor.continue(new_state)
+        }
+      }
     }
-    CreateSubReddit(sr_id, _requester) -> {
+    CreateSubReddit(sr_id, requester) -> {
       let already_exists = dict.get(state.subreddits, sr_id)
       case already_exists {
-        Ok(_subreddit) -> {
+        Ok(subreddit) -> {
           //io.println("Already exists")
+          //need to notify api process that we already
+          actor.send(requester, Nack(subreddit.sr_id <> " already existed"))
           actor.continue(state)
         }
         _ -> {
           let new_sr = Subreddit(sr_id, [], [])
           let new_subreddits = dict.insert(state.subreddits, sr_id, new_sr)
           let new_state = EngineState(..state, subreddits: new_subreddits)
+          actor.send(requester, Ack(sr_id <> " created"))
           actor.continue(new_state)
         }
       }
     }
-    JoinSubreddit(user_id, sr_id, _requester) -> {
+
+    JoinSubreddit(user_id, sr_id, requester) -> {
       let sr_exists = dict.get(state.subreddits, sr_id)
       let user_exists = dict.get(state.users, user_id)
       case sr_exists, user_exists {
@@ -101,13 +112,16 @@ fn handle_message_engine(
               users: updated_users,
               subreddits: updated_subreddits,
             )
+          actor.send(requester, Ack(user_id<> " joined " <> sr_id <> " successfully"))
           actor.continue(new_state)
         }
         _, _ -> {
+          actor.send(requester, Nack("user_id or sr_id invalid"))
           actor.continue(state)
         }
       }
     }
+
     LeaveSubreddit(user_id, sr_id, _requester) -> {
       let sr_exists = dict.get(state.subreddits, sr_id)
       let user_exists = dict.get(state.users, user_id)
