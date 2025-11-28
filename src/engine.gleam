@@ -122,10 +122,11 @@ fn handle_message_engine(
       }
     }
 
-    LeaveSubreddit(user_id, sr_id, _requester) -> {
+    LeaveSubreddit(user_id, sr_id, requester) -> {
       let sr_exists = dict.get(state.subreddits, sr_id)
       let user_exists = dict.get(state.users, user_id)
       case sr_exists, user_exists {
+        //TODO: FIX user should be checked in the subreddits and subreddit checked in user (relationship exists)
         Ok(subreddit), Ok(user) -> {
           //filter out the user from the subreddit
           let new_members =
@@ -144,9 +145,11 @@ fn handle_message_engine(
               users: updated_users,
               subreddits: updated_subreddits,
             )
+          actor.send(requester, Ack(user_id <> " successfully left " <> sr_id))
           actor.continue(new_state)
         }
         _, _ -> {
+          actor.send(requester, Nack(user_id <> " is not in " <> sr_id))
           actor.continue(state)
         }
       }
