@@ -91,7 +91,6 @@ fn handle_message_engine(
         }
       }
     }
-
     JoinSubreddit(user_id, sr_id, requester) -> {
       let sr_exists = dict.get(state.subreddits, sr_id)
       let user_exists = dict.get(state.users, user_id)
@@ -121,7 +120,6 @@ fn handle_message_engine(
         }
       }
     }
-
     LeaveSubreddit(user_id, sr_id, requester) -> {
       let sr_exists = dict.get(state.subreddits, sr_id)
       let user_exists = dict.get(state.users, user_id)
@@ -183,7 +181,7 @@ fn handle_message_engine(
         }
       }
     }
-    CommentInSubReddit(parent_id, user_id, comment_text) -> {
+    CommentInSubReddit(parent_id, user_id, comment_text, requester) -> {
       let new_comment =
         Comment(
           "comment" <> int.to_string(dict.size(state.comments)),
@@ -194,7 +192,7 @@ fn handle_message_engine(
           0,
           0,
         )
-      let new_state = update_comments(new_comment, state)
+      let new_state = update_comments(new_comment, state, requester)
       actor.continue(new_state)
     }
     GetComment(comment_id, requester) -> {
@@ -204,33 +202,27 @@ fn handle_message_engine(
           process.send(requester, ActOnComment(comment))
         }
         _ -> {
-          //io.println(comment_id <> "does not exist, failed GetCommment")
-          Nil
+          process.send(requester, Nack("Comment " <> comment_id <> " does not exist"))
         }
       }
       actor.continue(state)
     }
-    Upvote(parent_id) -> {
-      //io.println("upvoting" <> parent_id)
-      let new_state = update_votes(True, parent_id, state)
+    Upvote(parent_id, requester) -> {
+      let new_state = update_votes(True, parent_id, state, requester)
       actor.continue(new_state)
     }
-    Downvote(parent_id) -> {
-      //io.println("downvoting" <> parent_id)
-      let new_state = update_votes(False, parent_id, state)
+    Downvote(parent_id, requester) -> {
+      let new_state = update_votes(False, parent_id, state, requester)
       actor.continue(new_state)
     }
     RequestKarma(user_id, requester) -> {
-      //io.println("printed from engine")
       let user_exists = dict.get(state.users, user_id)
       case user_exists {
         Ok(user) -> {
-          //io.println("ok users karma is" <> int.to_string(user.userkarma))
           process.send(requester, ReceiveKarma(user.userkarma))
         }
         _ -> {
-          //io.println("user dne")
-          Nil
+          process.send(requester, Nack("User " <> user_id <> " does not exist"))
         }
       }
       actor.continue(state)
@@ -251,14 +243,13 @@ fn handle_message_engine(
           process.send(requester, ReceiveFeed(posts))
         }
         _ -> {
-          //io.println("User " <> user_id <> " does not exist and is requesting a feed",)
-          Nil
+          process.send(requester, Nack("User " <> user_id <> " does not exist"))
         }
       }
       actor.continue(state)
     }
-    SendMessage(from_user_id, to_user_id, message) -> {
-      //update direct messages 
+    SendMessage(from_user_id, to_user_id, message, requester) -> {
+      //update direct messages
       let direct_message = DirectMessage(from_user_id, to_user_id, message)
       let message_id = int.to_string(dict.size(state.direct_messages))
       let updated_direct_messages =
@@ -290,6 +281,7 @@ fn handle_message_engine(
                   direct_messages: updated_direct_messages,
                   users_inbox: updated_users_inbox,
                 )
+              actor.send(requester, Ack("Message sent from " <> from_user_id <> " to " <> to_user_id))
               actor.continue(new_state)
             }
             _ -> {
@@ -308,12 +300,13 @@ fn handle_message_engine(
                   direct_messages: updated_direct_messages,
                   users_inbox: updated_users_inbox,
                 )
+              actor.send(requester, Ack("Message sent from " <> from_user_id <> " to " <> to_user_id))
               actor.continue(new_state)
             }
           }
         }
         _ -> {
-          //io.println("User Id not found in inboxes")
+          actor.send(requester, Nack("User " <> to_user_id <> " not found in inboxes"))
           actor.continue(state)
         }
       }
@@ -329,8 +322,7 @@ fn handle_message_engine(
           process.send(requester, DirectMessageInbox(filtered_state))
         }
         _ -> {
-          //io.println("User Id not found in inboxes")
-          Nil
+          process.send(requester, Nack("User " <> user_id <> " not found in inboxes"))
         }
       }
       actor.continue(state)
@@ -371,7 +363,7 @@ fn handle_message_engine(
 //   }
 // }
 
-fn update_comments(new_comment: Comment, state: EngineState) -> EngineState {
+fn update_comments(new_comment: Comment, state: EngineState, requester: process.Subject(pub_types.ClientMessage)) -> EngineState {
   let parent_is_post = string.starts_with(new_comment.parent_id, "post")
   case parent_is_post {
     True -> {
@@ -395,10 +387,11 @@ fn update_comments(new_comment: Comment, state: EngineState) -> EngineState {
               posts: updated_posts,
               comments: updated_comments,
             )
+          actor.send(requester, pub_types.Ack(new_comment.user_id <> " commented on " <> new_comment.parent_id))
           new_state
         }
         _ -> {
-          io.println(new_comment.parent_id <> " does not exist in posts")
+          actor.send(requester, pub_types.Nack(new_comment.parent_id <> " does not exist in posts"))
           state
         }
       }
@@ -423,9 +416,11 @@ fn update_comments(new_comment: Comment, state: EngineState) -> EngineState {
               new_parent_comment,
             )
           let new_state = EngineState(..state, comments: updated_comments)
+          actor.send(requester, pub_types.Ack(new_comment.user_id <> " commented on " <> new_comment.parent_id))
           new_state
         }
         _ -> {
+          actor.send(requester, pub_types.Nack(new_comment.parent_id <> " does not exist"))
           state
         }
       }
@@ -437,8 +432,13 @@ fn update_votes(
   upvote: Bool,
   parent_id: String,
   state: EngineState,
+  requester: process.Subject(pub_types.ClientMessage),
 ) -> EngineState {
   let parent_is_post = string.starts_with(parent_id, "post")
+  let vote_type = case upvote {
+    True -> "upvoted"
+    False -> "downvoted"
+  }
   case parent_is_post {
     True -> {
       let post_exists = dict.get(state.posts, parent_id)
@@ -461,6 +461,7 @@ fn update_votes(
                       posts: updated_posts,
                       users: updated_users,
                     )
+                  actor.send(requester, pub_types.Ack(parent_id <> " " <> vote_type))
                   new_state
                 }
                 False -> {
@@ -476,18 +477,19 @@ fn update_votes(
                       posts: updated_posts,
                       users: updated_users,
                     )
+                  actor.send(requester, pub_types.Ack(parent_id <> " " <> vote_type))
                   new_state
                 }
               }
             }
             _ -> {
-              io.println("User corresponding to the post was not found")
+              actor.send(requester, pub_types.Nack("User corresponding to the post was not found"))
               state
             }
           }
         }
         _ -> {
-          io.println(parent_id <> " does not exist in posts")
+          actor.send(requester, pub_types.Nack(parent_id <> " does not exist in posts"))
           state
         }
       }
@@ -517,6 +519,7 @@ fn update_votes(
                       comments: updated_comments,
                       users: updated_users,
                     )
+                  actor.send(requester, pub_types.Ack(parent_id <> " " <> vote_type))
                   new_state
                 }
                 False -> {
@@ -537,18 +540,19 @@ fn update_votes(
                       comments: updated_comments,
                       users: updated_users,
                     )
+                  actor.send(requester, pub_types.Ack(parent_id <> " " <> vote_type))
                   new_state
                 }
               }
             }
             _ -> {
-              io.println("User corresponding to the comment was never found")
+              actor.send(requester, pub_types.Nack("User corresponding to the comment was never found"))
               state
             }
           }
         }
         _ -> {
-          io.println("the parent id belongs to no comment")
+          actor.send(requester, pub_types.Nack("the parent id " <> parent_id <> " belongs to no comment"))
           state
         }
       }

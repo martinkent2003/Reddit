@@ -107,16 +107,17 @@ pub type EngineMessage {
     parent_id: String,
     user_id: String,
     comment_message: String,
+    requester: Subject(ClientMessage),
   )
   GetComment(comment_id: String, requester: Subject(ClientMessage))
   //Upvote/Downvote(on comment or post)
-  Upvote(parent_id: String)
-  Downvote(parent_id: String)
+  Upvote(parent_id: String, requester: Subject(ClientMessage))
+  Downvote(parent_id: String, requester: Subject(ClientMessage))
   RequestKarma(user_id: String, requester: Subject(ClientMessage))
   //Feed
   RequestFeed(user_id: String, requester: Subject(ClientMessage))
   //Messages
-  SendMessage(from_user_id: String, to_user_id: String, message: String)
+  SendMessage(from_user_id: String, to_user_id: String, message: String, requester: Subject(ClientMessage))
   RequestInbox(user_id: String, requester: Subject(ClientMessage))
   PrintSubredditSizes
 

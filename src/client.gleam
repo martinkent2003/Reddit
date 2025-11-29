@@ -115,7 +115,7 @@ fn handle_message_client(
                     <> post.post_id
                   process.send(
                     state.engine_subject,
-                    SendMessage(state.user_id, post.user_id, message),
+                    SendMessage(state.user_id, post.user_id, message, state.self_subject),
                   )
                 }
                 _ -> {
@@ -137,7 +137,7 @@ fn handle_message_client(
                     <> target_id
                   process.send(
                     state.engine_subject,
-                    SendMessage(state.user_id, target_id, message),
+                    SendMessage(state.user_id, target_id, message, state.self_subject),
                   )
                 }
                 _ -> {
@@ -181,6 +181,7 @@ fn handle_message_client(
                 post.post_id,
                 state.user_id,
                 state.engine_subject,
+                state.self_subject
               )
             }
             _ -> {
@@ -260,6 +261,7 @@ fn handle_message_client(
             comment.comment_id,
             state.user_id,
             state.engine_subject,
+            state.self_subject
           )
         }
       }
@@ -344,6 +346,7 @@ pub fn act_on_parent_id(
   parent_id: String,
   user_id: String,
   engine: Subject(EngineMessage),
+  client: Subject(ClientMessage)
 ) {
   case int.random(3) {
     0 ->
@@ -353,10 +356,11 @@ pub fn act_on_parent_id(
           parent_id,
           user_id,
           "Comment by " <> user_id <> " on " <> parent_id,
+          client
         ),
       )
-    1 -> process.send(engine, Upvote(parent_id))
-    2 -> process.send(engine, Downvote(parent_id))
+    1 -> process.send(engine, Upvote(parent_id, client))
+    2 -> process.send(engine, Downvote(parent_id, client))
     _ -> Nil
   }
 }
