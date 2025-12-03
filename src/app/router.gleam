@@ -1,13 +1,18 @@
-import gleam/dict
-import gleam/json
 import app/web
+import gleam/dict
 import gleam/erlang/process
 import gleam/http.{Get, Post}
+import gleam/json
 import gleam/list
 import gleam/result
 import wisp.{type Request, type Response}
 
-import pub_types.{type ClientMessage, type EngineMessage, type Comment, type Post, type DirectMessage, RegisterAccount,CreateSubReddit,JoinSubreddit,LeaveSubreddit,PostInSubReddit, CommentInSubReddit, GetComment, Upvote, Downvote, RequestKarma, RequestFeed, SendMessage, RequestInbox, Ack, Nack, ActOnComment, ReceiveKarma, ReceiveFeed, DirectMessageInbox}
+import pub_types.{
+  type ClientMessage, type EngineMessage, Ack, ActOnComment, CommentInSubReddit,
+  CreateSubReddit, DirectMessageInbox, Downvote, GetComment, JoinSubreddit,
+  LeaveSubreddit, Nack, PostInSubReddit, ReceiveFeed, ReceiveKarma,
+  RegisterAccount, RequestFeed, RequestInbox, RequestKarma, SendMessage, Upvote,
+}
 
 pub fn handle_request(
   req: Request,
@@ -81,7 +86,10 @@ fn register_account(
   use formdata <- wisp.require_form(req)
 
   let result = {
-    use user_id <- result.try(list.key_find(formdata.values, "user_id") |> result.replace_error("Missing user_id"))
+    use user_id <- result.try(
+      list.key_find(formdata.values, "user_id")
+      |> result.replace_error("Missing user_id"),
+    )
     let subject = process.new_subject()
     process.send(engine, RegisterAccount(user_id, subject))
     let response = process.receive_forever(subject)
@@ -92,12 +100,18 @@ fn register_account(
   html_response_from_result(result)
 }
 
-fn create_subreddit(req: Request, engine: process.Subject(EngineMessage)) -> Response {
+fn create_subreddit(
+  req: Request,
+  engine: process.Subject(EngineMessage),
+) -> Response {
   use <- wisp.require_method(req, Post)
   use formdata <- wisp.require_form(req)
 
   let result = {
-    use sr_id <- result.try(list.key_find(formdata.values, "sr_id") |> result.replace_error("Missing sr_id"))
+    use sr_id <- result.try(
+      list.key_find(formdata.values, "sr_id")
+      |> result.replace_error("Missing sr_id"),
+    )
     let subject = process.new_subject()
     process.send(engine, CreateSubReddit(sr_id, subject))
     let response = process.receive_forever(subject)
@@ -108,13 +122,22 @@ fn create_subreddit(req: Request, engine: process.Subject(EngineMessage)) -> Res
   html_response_from_result(result)
 }
 
-fn join_subreddit(req: Request, engine: process.Subject(EngineMessage)) -> Response{
+fn join_subreddit(
+  req: Request,
+  engine: process.Subject(EngineMessage),
+) -> Response {
   use <- wisp.require_method(req, Post)
   use formdata <- wisp.require_form(req)
 
   let result = {
-    use user_id <- result.try(list.key_find(formdata.values, "user_id") |> result.replace_error("Missing user_id"))
-    use sr_id <- result.try(list.key_find(formdata.values, "sr_id") |> result.replace_error("Missing sr_id"))
+    use user_id <- result.try(
+      list.key_find(formdata.values, "user_id")
+      |> result.replace_error("Missing user_id"),
+    )
+    use sr_id <- result.try(
+      list.key_find(formdata.values, "sr_id")
+      |> result.replace_error("Missing sr_id"),
+    )
     let subject = process.new_subject()
     process.send(engine, JoinSubreddit(user_id, sr_id, subject))
     let response = process.receive_forever(subject)
@@ -125,13 +148,22 @@ fn join_subreddit(req: Request, engine: process.Subject(EngineMessage)) -> Respo
   html_response_from_result(result)
 }
 
-fn leave_subreddit(req: Request, engine: process.Subject(EngineMessage)) -> Response{
+fn leave_subreddit(
+  req: Request,
+  engine: process.Subject(EngineMessage),
+) -> Response {
   use <- wisp.require_method(req, Post)
   use formdata <- wisp.require_form(req)
 
   let result = {
-    use user_id <- result.try(list.key_find(formdata.values, "user_id") |> result.replace_error("Missing user_id"))
-    use sr_id <- result.try(list.key_find(formdata.values, "sr_id") |> result.replace_error("Missing sr_id"))
+    use user_id <- result.try(
+      list.key_find(formdata.values, "user_id")
+      |> result.replace_error("Missing user_id"),
+    )
+    use sr_id <- result.try(
+      list.key_find(formdata.values, "sr_id")
+      |> result.replace_error("Missing sr_id"),
+    )
     let subject = process.new_subject()
     process.send(engine, LeaveSubreddit(user_id, sr_id, subject))
     let response = process.receive_forever(subject)
@@ -142,14 +174,26 @@ fn leave_subreddit(req: Request, engine: process.Subject(EngineMessage)) -> Resp
   html_response_from_result(result)
 }
 
-fn post_in_subreddit(req: Request, engine: process.Subject(EngineMessage)) -> Response{
+fn post_in_subreddit(
+  req: Request,
+  engine: process.Subject(EngineMessage),
+) -> Response {
   use <- wisp.require_method(req, Post)
   use formdata <- wisp.require_form(req)
 
   let result = {
-    use user_id <- result.try(list.key_find(formdata.values, "user_id") |> result.replace_error("Missing user_id"))
-    use sr_id <- result.try(list.key_find(formdata.values, "sr_id") |> result.replace_error("Missing sr_id"))
-    use post_text <- result.try(list.key_find(formdata.values, "post_text") |> result.replace_error("Missing post_text"))
+    use user_id <- result.try(
+      list.key_find(formdata.values, "user_id")
+      |> result.replace_error("Missing user_id"),
+    )
+    use sr_id <- result.try(
+      list.key_find(formdata.values, "sr_id")
+      |> result.replace_error("Missing sr_id"),
+    )
+    use post_text <- result.try(
+      list.key_find(formdata.values, "post_text")
+      |> result.replace_error("Missing post_text"),
+    )
     let subject = process.new_subject()
     process.send(engine, PostInSubReddit(user_id, sr_id, post_text, subject))
     let response = process.receive_forever(subject)
@@ -160,16 +204,31 @@ fn post_in_subreddit(req: Request, engine: process.Subject(EngineMessage)) -> Re
   html_response_from_result(result)
 }
 
-fn comment_in_subreddit(req: Request, engine: process.Subject(EngineMessage)) -> Response{
+fn comment_in_subreddit(
+  req: Request,
+  engine: process.Subject(EngineMessage),
+) -> Response {
   use <- wisp.require_method(req, Post)
   use formdata <- wisp.require_form(req)
 
   let result = {
-    use parent_id <- result.try(list.key_find(formdata.values, "parent_id") |> result.replace_error("Missing parent_id"))
-    use user_id <- result.try(list.key_find(formdata.values, "user_id") |> result.replace_error("Missing user_id"))
-    use comment_text <- result.try(list.key_find(formdata.values, "comment_text") |> result.replace_error("Missing comment_text"))
+    use parent_id <- result.try(
+      list.key_find(formdata.values, "parent_id")
+      |> result.replace_error("Missing parent_id"),
+    )
+    use user_id <- result.try(
+      list.key_find(formdata.values, "user_id")
+      |> result.replace_error("Missing user_id"),
+    )
+    use comment_text <- result.try(
+      list.key_find(formdata.values, "comment_text")
+      |> result.replace_error("Missing comment_text"),
+    )
     let subject = process.new_subject()
-    process.send(engine, CommentInSubReddit(parent_id, user_id, comment_text, subject))
+    process.send(
+      engine,
+      CommentInSubReddit(parent_id, user_id, comment_text, subject),
+    )
     let response = process.receive_forever(subject)
     echo response
     handle_ack_nack_response(response, "comment in subreddit")
@@ -178,33 +237,37 @@ fn comment_in_subreddit(req: Request, engine: process.Subject(EngineMessage)) ->
   html_response_from_result(result)
 }
 
-fn get_comment(req: Request, engine: process.Subject(EngineMessage)) -> Response{
+fn get_comment(req: Request, engine: process.Subject(EngineMessage)) -> Response {
   use <- wisp.require_method(req, Post)
   use formdata <- wisp.require_form(req)
 
   let result = {
-    use comment_id <- result.try(list.key_find(formdata.values, "comment_id") |> result.replace_error("Missing comment_id"))
+    use comment_id <- result.try(
+      list.key_find(formdata.values, "comment_id")
+      |> result.replace_error("Missing comment_id"),
+    )
     let subject = process.new_subject()
     process.send(engine, GetComment(comment_id, subject))
     let response = process.receive_forever(subject)
     echo response
-    case response{
-      ActOnComment(comment)->{
-        let object = json.object([
-          #("comment_id", json.string(comment.comment_id)),
-          #("parent_id", json.string(comment.parent_id)),
-          #("user_id", json.string(comment.user_id)),
-          #("comment_content", json.string(comment.comment_content)),
-          #("upvotes", json.int(comment.upvotes)),
-          #("downvotes", json.int(comment.downvotes)),
-        ])
+    case response {
+      ActOnComment(comment) -> {
+        let object =
+          json.object([
+            #("comment_id", json.string(comment.comment_id)),
+            #("parent_id", json.string(comment.parent_id)),
+            #("user_id", json.string(comment.user_id)),
+            #("comment_content", json.string(comment.comment_content)),
+            #("upvotes", json.int(comment.upvotes)),
+            #("downvotes", json.int(comment.downvotes)),
+          ])
         Ok(json.to_string(object))
       }
-      Nack(message)->{
+      Nack(message) -> {
         wisp.log_error(message)
         Error(message)
       }
-      _->{
+      _ -> {
         wisp.log_error("not a correct message (get comment)")
         Error("Invalid response type")
       }
@@ -214,12 +277,15 @@ fn get_comment(req: Request, engine: process.Subject(EngineMessage)) -> Response
   json_response_from_result(result)
 }
 
-fn upvote(req: Request, engine: process.Subject(EngineMessage)) -> Response{
+fn upvote(req: Request, engine: process.Subject(EngineMessage)) -> Response {
   use <- wisp.require_method(req, Post)
   use formdata <- wisp.require_form(req)
 
   let result = {
-    use parent_id <- result.try(list.key_find(formdata.values, "parent_id") |> result.replace_error("Missing parent_id"))
+    use parent_id <- result.try(
+      list.key_find(formdata.values, "parent_id")
+      |> result.replace_error("Missing parent_id"),
+    )
     let subject = process.new_subject()
     process.send(engine, Upvote(parent_id, subject))
     let response = process.receive_forever(subject)
@@ -230,12 +296,15 @@ fn upvote(req: Request, engine: process.Subject(EngineMessage)) -> Response{
   html_response_from_result(result)
 }
 
-fn downvote(req: Request, engine: process.Subject(EngineMessage)) -> Response{
+fn downvote(req: Request, engine: process.Subject(EngineMessage)) -> Response {
   use <- wisp.require_method(req, Post)
   use formdata <- wisp.require_form(req)
 
   let result = {
-    use parent_id <- result.try(list.key_find(formdata.values, "parent_id") |> result.replace_error("Missing parent_id"))
+    use parent_id <- result.try(
+      list.key_find(formdata.values, "parent_id")
+      |> result.replace_error("Missing parent_id"),
+    )
     let subject = process.new_subject()
     process.send(engine, Downvote(parent_id, subject))
     let response = process.receive_forever(subject)
@@ -246,29 +315,36 @@ fn downvote(req: Request, engine: process.Subject(EngineMessage)) -> Response{
   html_response_from_result(result)
 }
 
-fn request_karma(req: Request, engine: process.Subject(EngineMessage)) -> Response{
+fn request_karma(
+  req: Request,
+  engine: process.Subject(EngineMessage),
+) -> Response {
   use <- wisp.require_method(req, Post)
   use formdata <- wisp.require_form(req)
 
   let result = {
-    use user_id <- result.try(list.key_find(formdata.values, "user_id") |> result.replace_error("Missing user_id"))
+    use user_id <- result.try(
+      list.key_find(formdata.values, "user_id")
+      |> result.replace_error("Missing user_id"),
+    )
     let subject = process.new_subject()
     process.send(engine, RequestKarma(user_id, subject))
     let response = process.receive_forever(subject)
     echo response
-    case response{
-      ReceiveKarma(karma)->{
-        let object = json.object([
-          #("user_id", json.string(user_id)),
-          #("karma", json.int(karma)),
-        ])
+    case response {
+      ReceiveKarma(karma) -> {
+        let object =
+          json.object([
+            #("user_id", json.string(user_id)),
+            #("karma", json.int(karma)),
+          ])
         Ok(json.to_string(object))
       }
-      Nack(message)->{
+      Nack(message) -> {
         wisp.log_error(message)
         Error(message)
       }
-      _->{
+      _ -> {
         wisp.log_error("not a correct message (request karma)")
         Error("Invalid response type")
       }
@@ -278,40 +354,48 @@ fn request_karma(req: Request, engine: process.Subject(EngineMessage)) -> Respon
   json_response_from_result(result)
 }
 
-fn request_feed(req: Request, engine: process.Subject(EngineMessage)) -> Response{
+fn request_feed(
+  req: Request,
+  engine: process.Subject(EngineMessage),
+) -> Response {
   use <- wisp.require_method(req, Post)
   use formdata <- wisp.require_form(req)
 
   let result = {
-    use user_id <- result.try(list.key_find(formdata.values, "user_id") |> result.replace_error("Missing user_id"))
+    use user_id <- result.try(
+      list.key_find(formdata.values, "user_id")
+      |> result.replace_error("Missing user_id"),
+    )
     let subject = process.new_subject()
     process.send(engine, RequestFeed(user_id, subject))
     let response = process.receive_forever(subject)
     echo response
-    case response{
-      ReceiveFeed(posts)->{
-        let posts_json = list.map(posts, fn(post) {
+    case response {
+      ReceiveFeed(posts) -> {
+        let posts_json =
+          list.map(posts, fn(post) {
+            json.object([
+              #("post_id", json.string(post.post_id)),
+              #("user_id", json.string(post.user_id)),
+              #("subreddit_id", json.string(post.subreddit_id)),
+              #("post_content", json.string(post.post_content)),
+              #("comments", json.array(post.comments, of: json.string)),
+              #("upvotes", json.int(post.upvotes)),
+              #("downvotes", json.int(post.downvotes)),
+            ])
+          })
+        let object =
           json.object([
-            #("post_id", json.string(post.post_id)),
-            #("user_id", json.string(post.user_id)),
-            #("subreddit_id", json.string(post.subreddit_id)),
-            #("post_content", json.string(post.post_content)),
-            #("comments", json.array(post.comments, of: json.string)),
-            #("upvotes", json.int(post.upvotes)),
-            #("downvotes", json.int(post.downvotes)),
+            #("user_id", json.string(user_id)),
+            #("posts", json.array(posts_json, fn(x) { x })),
           ])
-        })
-        let object = json.object([
-          #("user_id", json.string(user_id)),
-          #("posts", json.array(posts_json, fn(x) { x })),
-        ])
         Ok(json.to_string(object))
       }
-      Nack(message)->{
+      Nack(message) -> {
         wisp.log_error(message)
         Error(message)
       }
-      _->{
+      _ -> {
         wisp.log_error("not a correct message (request feed)")
         Error("Invalid response type")
       }
@@ -321,16 +405,31 @@ fn request_feed(req: Request, engine: process.Subject(EngineMessage)) -> Respons
   json_response_from_result(result)
 }
 
-fn send_message(req: Request, engine: process.Subject(EngineMessage)) -> Response{
+fn send_message(
+  req: Request,
+  engine: process.Subject(EngineMessage),
+) -> Response {
   use <- wisp.require_method(req, Post)
   use formdata <- wisp.require_form(req)
 
   let result = {
-    use from_user_id <- result.try(list.key_find(formdata.values, "from_user_id") |> result.replace_error("Missing from_user_id"))
-    use to_user_id <- result.try(list.key_find(formdata.values, "to_user_id") |> result.replace_error("Missing to_user_id"))
-    use message <- result.try(list.key_find(formdata.values, "message") |> result.replace_error("Missing message"))
+    use from_user_id <- result.try(
+      list.key_find(formdata.values, "from_user_id")
+      |> result.replace_error("Missing from_user_id"),
+    )
+    use to_user_id <- result.try(
+      list.key_find(formdata.values, "to_user_id")
+      |> result.replace_error("Missing to_user_id"),
+    )
+    use message <- result.try(
+      list.key_find(formdata.values, "message")
+      |> result.replace_error("Missing message"),
+    )
     let subject = process.new_subject()
-    process.send(engine, SendMessage(from_user_id, to_user_id, message, subject))
+    process.send(
+      engine,
+      SendMessage(from_user_id, to_user_id, message, subject),
+    )
     let response = process.receive_forever(subject)
     echo response
     handle_ack_nack_response(response, "send message")
@@ -339,19 +438,26 @@ fn send_message(req: Request, engine: process.Subject(EngineMessage)) -> Respons
   html_response_from_result(result)
 }
 
-fn request_inbox(req: Request, engine: process.Subject(EngineMessage)) -> Response{
+fn request_inbox(
+  req: Request,
+  engine: process.Subject(EngineMessage),
+) -> Response {
   use <- wisp.require_method(req, Post)
   use formdata <- wisp.require_form(req)
 
   let result = {
-    use user_id <- result.try(list.key_find(formdata.values, "user_id") |> result.replace_error("Missing user_id"))
+    use user_id <- result.try(
+      list.key_find(formdata.values, "user_id")
+      |> result.replace_error("Missing user_id"),
+    )
     let subject = process.new_subject()
     process.send(engine, RequestInbox(user_id, subject))
     let response = process.receive_forever(subject)
     echo response
-    case response{
-      DirectMessageInbox(messages)->{
-        let messages_json = dict.to_list(messages)
+    case response {
+      DirectMessageInbox(messages) -> {
+        let messages_json =
+          dict.to_list(messages)
           |> list.map(fn(tuple) {
             let #(msg_id, dm) = tuple
             json.object([
@@ -361,17 +467,18 @@ fn request_inbox(req: Request, engine: process.Subject(EngineMessage)) -> Respon
               #("content", json.string(dm.content)),
             ])
           })
-        let object = json.object([
-          #("user_id", json.string(user_id)),
-          #("messages", json.array(messages_json, fn(x) { x })),
-        ])
+        let object =
+          json.object([
+            #("user_id", json.string(user_id)),
+            #("messages", json.array(messages_json, fn(x) { x })),
+          ])
         Ok(json.to_string(object))
       }
-      Nack(message)->{
+      Nack(message) -> {
         wisp.log_error(message)
         Error(message)
       }
-      _->{
+      _ -> {
         wisp.log_error("not a correct message (request inbox)")
         Error("Invalid response type")
       }
