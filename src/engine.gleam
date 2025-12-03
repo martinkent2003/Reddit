@@ -1,11 +1,9 @@
 import gleam/dict.{type Dict}
 import gleam/erlang/process
 import gleam/int
-import gleam/io
 import gleam/list
 import gleam/otp/actor
 import gleam/string
-import wisp
 
 import pub_types.{
   type Comment, type DirectMessage, type EngineMessage, type Post,
@@ -13,7 +11,7 @@ import pub_types.{
   CommentInSubReddit, CreateSubReddit, DirectMessage, DirectMessageInbox,
   Downvote, GetComment, JoinSubreddit, LeaveSubreddit, Pong, Post,
   PostInSubReddit, ReceiveFeed, ReceiveKarma, RegisterAccount, RequestFeed,
-  RequestInbox, RequestKarma, SendMessage, Subreddit, Upvote, User, UserInbox, Nack, Ack, ListAck
+  RequestInbox, RequestKarma, SendMessage, Subreddit, Upvote, User, UserInbox, Nack, Ack
 }
 
 pub type EngineState {

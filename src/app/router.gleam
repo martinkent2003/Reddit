@@ -1,6 +1,3 @@
-import gleam/http/response
-import gleam/io
-import gleam/int
 import gleam/dict
 import gleam/json
 import app/web
@@ -10,7 +7,7 @@ import gleam/list
 import gleam/result
 import wisp.{type Request, type Response}
 
-import pub_types.{type ClientMessage, type EngineMessage, type Comment, type Post, type DirectMessage, RegisterAccount,CreateSubReddit,JoinSubreddit,LeaveSubreddit,PostInSubReddit, CommentInSubReddit, GetComment, Upvote, Downvote, RequestKarma, RequestFeed, SendMessage, RequestInbox, ListAck, Ack, Nack, ActOnComment, ReceiveKarma, ReceiveFeed, DirectMessageInbox}
+import pub_types.{type ClientMessage, type EngineMessage, type Comment, type Post, type DirectMessage, RegisterAccount,CreateSubReddit,JoinSubreddit,LeaveSubreddit,PostInSubReddit, CommentInSubReddit, GetComment, Upvote, Downvote, RequestKarma, RequestFeed, SendMessage, RequestInbox, Ack, Nack, ActOnComment, ReceiveKarma, ReceiveFeed, DirectMessageInbox}
 
 pub fn handle_request(
   req: Request,
@@ -42,226 +39,151 @@ fn health_check(req: Request) -> Response {
   |> wisp.html_body("api working")
 }
 
+// Helper function to handle standard Ack/Nack responses
+fn handle_ack_nack_response(
+  response: ClientMessage,
+  operation_name: String,
+) -> Result(String, String) {
+  case response {
+    Ack(message) -> Ok(message)
+    Nack(message) -> {
+      wisp.log_error(message)
+      Error(message)
+    }
+    _ -> {
+      wisp.log_error("not a correct message (" <> operation_name <> ")")
+      Error("Invalid response type")
+    }
+  }
+}
+
+// Helper function to send HTML response based on Result
+fn html_response_from_result(result: Result(String, String)) -> Response {
+  case result {
+    Ok(content) -> wisp.ok() |> wisp.html_body(content)
+    Error(error_msg) -> wisp.bad_request(error_msg)
+  }
+}
+
+// Helper function to send JSON response based on Result
+fn json_response_from_result(result: Result(String, String)) -> Response {
+  case result {
+    Ok(json_str) -> wisp.json_response(json_str, 200)
+    Error(error_msg) -> wisp.bad_request(error_msg)
+  }
+}
+
 fn register_account(
   req: Request,
   engine: process.Subject(EngineMessage),
 ) -> Response {
   use <- wisp.require_method(req, Post)
   use formdata <- wisp.require_form(req)
-  // Now you can send messages to the engine:
+
   let result = {
-    use user_id <- result.try(list.key_find(formdata.values, "user_id"))
+    use user_id <- result.try(list.key_find(formdata.values, "user_id") |> result.replace_error("Missing user_id"))
     let subject = process.new_subject()
     process.send(engine, RegisterAccount(user_id, subject))
     let response = process.receive_forever(subject)
     echo response
-    case response{
-      Ack(message)->{
-        Ok(message)
-      }
-      Nack(message)->{
-        wisp.log_error(message)
-        Error(Nil)
-      }
-      _-> {
-        wisp.log_error("not a correct message (register account)")
-        Error(Nil)
-      }
-    }
+    handle_ack_nack_response(response, "register account")
   }
 
-  case result {
-    Ok(content) -> {
-      wisp.ok()
-      |> wisp.html_body(content)
-    }
-    Error(_) -> {
-      wisp.bad_request("Invalid form")
-    }
-  }
+  html_response_from_result(result)
 }
 
 fn create_subreddit(req: Request, engine: process.Subject(EngineMessage)) -> Response {
   use <- wisp.require_method(req, Post)
   use formdata <- wisp.require_form(req)
+
   let result = {
-    use sr_id <- result.try(list.key_find(formdata.values, "sr_id"))
+    use sr_id <- result.try(list.key_find(formdata.values, "sr_id") |> result.replace_error("Missing sr_id"))
     let subject = process.new_subject()
     process.send(engine, CreateSubReddit(sr_id, subject))
     let response = process.receive_forever(subject)
     echo response
-    case response{
-      Ack(message)->{
-        Ok(message)
-      }
-      Nack(message)->{
-        wisp.log_error(message)
-        Error(Nil)
-      }
-      _ -> {
-        wisp.log_error("not a correct message (create subreddit)")
-        Error(Nil)
-      }
-    }
+    handle_ack_nack_response(response, "create subreddit")
   }
-    case result {
-    Ok(content) -> {
-      wisp.ok()
-      |> wisp.html_body(content)
-    }
-    Error(_) -> {
-      wisp.bad_request("Invalid form")
-    }
-  }
+
+  html_response_from_result(result)
 }
 
 fn join_subreddit(req: Request, engine: process.Subject(EngineMessage)) -> Response{
   use <- wisp.require_method(req, Post)
   use formdata <- wisp.require_form(req)
+
   let result = {
-    use user_id <- result.try(list.key_find(formdata.values, "user_id"))
-    use sr_id <- result.try(list.key_find(formdata.values, "sr_id"))
+    use user_id <- result.try(list.key_find(formdata.values, "user_id") |> result.replace_error("Missing user_id"))
+    use sr_id <- result.try(list.key_find(formdata.values, "sr_id") |> result.replace_error("Missing sr_id"))
     let subject = process.new_subject()
     process.send(engine, JoinSubreddit(user_id, sr_id, subject))
     let response = process.receive_forever(subject)
     echo response
-    case response{
-      Ack(message)->{
-        Ok(message)
-      }
-      Nack(message)->{
-        wisp.log_error(message)
-        Error(Nil)
-      }
-      _->{
-        wisp.log_error("not a correct message (join subreddit)")
-        Error(Nil)
-      }
-    }
+    handle_ack_nack_response(response, "join subreddit")
   }
-  case result {
-    Ok(content) -> {
-      wisp.ok()
-      |> wisp.html_body(content)
-    }
-    Error(_) -> {
-      wisp.bad_request("Invalid form")
-    }
-  }
+
+  html_response_from_result(result)
 }
 
 fn leave_subreddit(req: Request, engine: process.Subject(EngineMessage)) -> Response{
   use <- wisp.require_method(req, Post)
   use formdata <- wisp.require_form(req)
+
   let result = {
-    use user_id <- result.try(list.key_find(formdata.values, "user_id"))
-    use sr_id <- result.try(list.key_find(formdata.values, "sr_id"))
+    use user_id <- result.try(list.key_find(formdata.values, "user_id") |> result.replace_error("Missing user_id"))
+    use sr_id <- result.try(list.key_find(formdata.values, "sr_id") |> result.replace_error("Missing sr_id"))
     let subject = process.new_subject()
     process.send(engine, LeaveSubreddit(user_id, sr_id, subject))
     let response = process.receive_forever(subject)
     echo response
-    case response{
-      Ack(message)->{
-        Ok(message)
-      }
-      Nack(message)->{
-        wisp.log_error(message)
-        Error(Nil)
-      }
-      _->{
-        wisp.log_error("not a correct message (join subreddit)")
-        Error(Nil)
-      }
-    }
+    handle_ack_nack_response(response, "leave subreddit")
   }
-  case result {
-    Ok(content) -> {
-      wisp.ok()
-      |> wisp.html_body(content)
-    }
-    Error(_) -> {
-      wisp.bad_request("Invalid form")
-    }
-  }
+
+  html_response_from_result(result)
 }
 
 fn post_in_subreddit(req: Request, engine: process.Subject(EngineMessage)) -> Response{
   use <- wisp.require_method(req, Post)
   use formdata <- wisp.require_form(req)
+
   let result = {
-    use user_id <- result.try(list.key_find(formdata.values, "user_id"))
-    use sr_id <- result.try(list.key_find(formdata.values, "sr_id"))
-    use post_text <- result.try(list.key_find(formdata.values, "post_text"))
+    use user_id <- result.try(list.key_find(formdata.values, "user_id") |> result.replace_error("Missing user_id"))
+    use sr_id <- result.try(list.key_find(formdata.values, "sr_id") |> result.replace_error("Missing sr_id"))
+    use post_text <- result.try(list.key_find(formdata.values, "post_text") |> result.replace_error("Missing post_text"))
     let subject = process.new_subject()
     process.send(engine, PostInSubReddit(user_id, sr_id, post_text, subject))
     let response = process.receive_forever(subject)
     echo response
-    case response{
-      Ack(message)->{
-        Ok(message)
-      }
-      Nack(message)->{
-        wisp.log_error(message)
-        Error(Nil)
-      }
-      _->{
-        wisp.log_error("not a correct message (post in subreddit)")
-        Error(Nil)
-      }
-    }
+    handle_ack_nack_response(response, "post in subreddit")
   }
-  case result {
-    Ok(content) -> {
-      wisp.ok()
-      |> wisp.html_body(content)
-    }
-    Error(_) -> {
-      wisp.bad_request("Invalid form")
-    }
-  }
+
+  html_response_from_result(result)
 }
 
 fn comment_in_subreddit(req: Request, engine: process.Subject(EngineMessage)) -> Response{
   use <- wisp.require_method(req, Post)
   use formdata <- wisp.require_form(req)
+
   let result = {
-    use parent_id <- result.try(list.key_find(formdata.values, "parent_id"))
-    use user_id <- result.try(list.key_find(formdata.values, "user_id"))
-    use comment_text <- result.try(list.key_find(formdata.values, "comment_text"))
+    use parent_id <- result.try(list.key_find(formdata.values, "parent_id") |> result.replace_error("Missing parent_id"))
+    use user_id <- result.try(list.key_find(formdata.values, "user_id") |> result.replace_error("Missing user_id"))
+    use comment_text <- result.try(list.key_find(formdata.values, "comment_text") |> result.replace_error("Missing comment_text"))
     let subject = process.new_subject()
     process.send(engine, CommentInSubReddit(parent_id, user_id, comment_text, subject))
     let response = process.receive_forever(subject)
     echo response
-    case response{
-      Ack(message)->{
-        Ok(message)
-      }
-      Nack(message)->{
-        wisp.log_error(message)
-        Error(Nil)
-      }
-      _->{
-        wisp.log_error("not a correct message (comment in subreddit)")
-        Error(Nil)
-      }
-    }
+    handle_ack_nack_response(response, "comment in subreddit")
   }
-  case result {
-    Ok(content) -> {
-      wisp.ok()
-      |> wisp.html_body(content)
-    }
-    Error(_) -> {
-      wisp.bad_request("Invalid form")
-    }
-  }
+
+  html_response_from_result(result)
 }
 
 fn get_comment(req: Request, engine: process.Subject(EngineMessage)) -> Response{
   use <- wisp.require_method(req, Post)
   use formdata <- wisp.require_form(req)
+
   let result = {
-    use comment_id <- result.try(list.key_find(formdata.values, "comment_id"))
+    use comment_id <- result.try(list.key_find(formdata.values, "comment_id") |> result.replace_error("Missing comment_id"))
     let subject = process.new_subject()
     process.send(engine, GetComment(comment_id, subject))
     let response = process.receive_forever(subject)
@@ -280,97 +202,56 @@ fn get_comment(req: Request, engine: process.Subject(EngineMessage)) -> Response
       }
       Nack(message)->{
         wisp.log_error(message)
-        Error(Nil)
+        Error(message)
       }
       _->{
         wisp.log_error("not a correct message (get comment)")
-        Error(Nil)
+        Error("Invalid response type")
       }
     }
   }
-  case result {
-    Ok(json_str) -> {
-      wisp.json_response(json_str, 200)
-    }
-    Error(_) -> {
-      wisp.bad_request("Invalid form")
-    }
-  }
+
+  json_response_from_result(result)
 }
 
 fn upvote(req: Request, engine: process.Subject(EngineMessage)) -> Response{
   use <- wisp.require_method(req, Post)
   use formdata <- wisp.require_form(req)
+
   let result = {
-    use parent_id <- result.try(list.key_find(formdata.values, "parent_id"))
+    use parent_id <- result.try(list.key_find(formdata.values, "parent_id") |> result.replace_error("Missing parent_id"))
     let subject = process.new_subject()
     process.send(engine, Upvote(parent_id, subject))
     let response = process.receive_forever(subject)
     echo response
-    case response{
-      Ack(message)->{
-        Ok(message)
-      }
-      Nack(message)->{
-        wisp.log_error(message)
-        Error(Nil)
-      }
-      _->{
-        wisp.log_error("not a correct message (upvote)")
-        Error(Nil)
-      }
-    }
+    handle_ack_nack_response(response, "upvote")
   }
-  case result {
-    Ok(content) -> {
-      wisp.ok()
-      |> wisp.html_body(content)
-    }
-    Error(_) -> {
-      wisp.bad_request("Invalid form")
-    }
-  }
+
+  html_response_from_result(result)
 }
 
 fn downvote(req: Request, engine: process.Subject(EngineMessage)) -> Response{
   use <- wisp.require_method(req, Post)
   use formdata <- wisp.require_form(req)
+
   let result = {
-    use parent_id <- result.try(list.key_find(formdata.values, "parent_id"))
+    use parent_id <- result.try(list.key_find(formdata.values, "parent_id") |> result.replace_error("Missing parent_id"))
     let subject = process.new_subject()
     process.send(engine, Downvote(parent_id, subject))
     let response = process.receive_forever(subject)
     echo response
-    case response{
-      Ack(message)->{
-        Ok(message)
-      }
-      Nack(message)->{
-        wisp.log_error(message)
-        Error(Nil)
-      }
-      _->{
-        wisp.log_error("not a correct message (downvote)")
-        Error(Nil)
-      }
-    }
+    handle_ack_nack_response(response, "downvote")
   }
-  case result {
-    Ok(content) -> {
-      wisp.ok()
-      |> wisp.html_body(content)
-    }
-    Error(_) -> {
-      wisp.bad_request("Invalid form")
-    }
-  }
+
+  html_response_from_result(result)
 }
 
 fn request_karma(req: Request, engine: process.Subject(EngineMessage)) -> Response{
   use <- wisp.require_method(req, Post)
   use formdata <- wisp.require_form(req)
+
   let result = {
-    use user_id <- result.try(list.key_find(formdata.values, "user_id"))
+    use user_id <- result.try(list.key_find(formdata.values, "user_id") |> result.replace_error("Missing user_id"))
     let subject = process.new_subject()
     process.send(engine, RequestKarma(user_id, subject))
     let response = process.receive_forever(subject)
@@ -385,29 +266,24 @@ fn request_karma(req: Request, engine: process.Subject(EngineMessage)) -> Respon
       }
       Nack(message)->{
         wisp.log_error(message)
-        Error(Nil)
+        Error(message)
       }
       _->{
         wisp.log_error("not a correct message (request karma)")
-        Error(Nil)
+        Error("Invalid response type")
       }
     }
   }
-  case result {
-    Ok(json_str) -> {
-      wisp.json_response(json_str, 200)
-    }
-    Error(_) -> {
-      wisp.bad_request("Invalid form")
-    }
-  }
+
+  json_response_from_result(result)
 }
 
 fn request_feed(req: Request, engine: process.Subject(EngineMessage)) -> Response{
   use <- wisp.require_method(req, Post)
   use formdata <- wisp.require_form(req)
+
   let result = {
-    use user_id <- result.try(list.key_find(formdata.values, "user_id"))
+    use user_id <- result.try(list.key_find(formdata.values, "user_id") |> result.replace_error("Missing user_id"))
     let subject = process.new_subject()
     process.send(engine, RequestFeed(user_id, subject))
     let response = process.receive_forever(subject)
@@ -420,6 +296,7 @@ fn request_feed(req: Request, engine: process.Subject(EngineMessage)) -> Respons
             #("user_id", json.string(post.user_id)),
             #("subreddit_id", json.string(post.subreddit_id)),
             #("post_content", json.string(post.post_content)),
+            #("comments", json.array(post.comments, of: json.string)),
             #("upvotes", json.int(post.upvotes)),
             #("downvotes", json.int(post.downvotes)),
           ])
@@ -432,65 +309,42 @@ fn request_feed(req: Request, engine: process.Subject(EngineMessage)) -> Respons
       }
       Nack(message)->{
         wisp.log_error(message)
-        Error(Nil)
+        Error(message)
       }
       _->{
         wisp.log_error("not a correct message (request feed)")
-        Error(Nil)
+        Error("Invalid response type")
       }
     }
   }
-  case result {
-    Ok(json_str) -> {
-      wisp.json_response(json_str, 200)
-    }
-    Error(_) -> {
-      wisp.bad_request("Invalid form")
-    }
-  }
+
+  json_response_from_result(result)
 }
 
 fn send_message(req: Request, engine: process.Subject(EngineMessage)) -> Response{
   use <- wisp.require_method(req, Post)
   use formdata <- wisp.require_form(req)
+
   let result = {
-    use from_user_id <- result.try(list.key_find(formdata.values, "from_user_id"))
-    use to_user_id <- result.try(list.key_find(formdata.values, "to_user_id"))
-    use message <- result.try(list.key_find(formdata.values, "message"))
+    use from_user_id <- result.try(list.key_find(formdata.values, "from_user_id") |> result.replace_error("Missing from_user_id"))
+    use to_user_id <- result.try(list.key_find(formdata.values, "to_user_id") |> result.replace_error("Missing to_user_id"))
+    use message <- result.try(list.key_find(formdata.values, "message") |> result.replace_error("Missing message"))
     let subject = process.new_subject()
     process.send(engine, SendMessage(from_user_id, to_user_id, message, subject))
     let response = process.receive_forever(subject)
     echo response
-    case response{
-      Ack(message)->{
-        Ok(message)
-      }
-      Nack(message)->{
-        wisp.log_error(message)
-        Error(Nil)
-      }
-      _->{
-        wisp.log_error("not a correct message (send message)")
-        Error(Nil)
-      }
-    }
+    handle_ack_nack_response(response, "send message")
   }
-  case result {
-    Ok(content) -> {
-      wisp.ok()
-      |> wisp.html_body(content)
-    }
-    Error(_) -> {
-      wisp.bad_request("Invalid form")
-    }
-  }
+
+  html_response_from_result(result)
 }
 
 fn request_inbox(req: Request, engine: process.Subject(EngineMessage)) -> Response{
   use <- wisp.require_method(req, Post)
   use formdata <- wisp.require_form(req)
+
   let result = {
-    use user_id <- result.try(list.key_find(formdata.values, "user_id"))
+    use user_id <- result.try(list.key_find(formdata.values, "user_id") |> result.replace_error("Missing user_id"))
     let subject = process.new_subject()
     process.send(engine, RequestInbox(user_id, subject))
     let response = process.receive_forever(subject)
@@ -515,20 +369,14 @@ fn request_inbox(req: Request, engine: process.Subject(EngineMessage)) -> Respon
       }
       Nack(message)->{
         wisp.log_error(message)
-        Error(Nil)
+        Error(message)
       }
       _->{
         wisp.log_error("not a correct message (request inbox)")
-        Error(Nil)
+        Error("Invalid response type")
       }
     }
   }
-  case result {
-    Ok(json_str) -> {
-      wisp.json_response(json_str, 200)
-    }
-    Error(_) -> {
-      wisp.bad_request("Invalid form")
-    }
-  }
+
+  json_response_from_result(result)
 }

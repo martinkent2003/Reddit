@@ -1,13 +1,7 @@
 import app/router
-import argv
-import cli
 import engine
 import gleam/erlang/process
-import gleam/int
-import gleam/io
 import mist
-import pub_types.{type EngineMessage}
-import simulator
 import wisp
 import wisp/wisp_mist
 
@@ -29,24 +23,22 @@ pub fn main() -> Nil {
     |> mist.start
 
   process.sleep(1000)
-  cli.start_cli()
-
   process.sleep_forever()
   Nil
 }
 
-fn run_simulation(
-  main_process: process.Subject(String),
-  engine: process.Subject(EngineMessage),
-  num_clients: Int,
-) {
-  io.println(
-    "Starting Reddit simulation with "
-    <> int.to_string(num_clients)
-    <> " clients",
-  )
-  let assert Ok(_simulator) =
-    simulator.start_simulator(main_process, engine, num_clients)
-  let _response = process.receive_forever(main_process)
-  Nil
-}
+// fn run_simulation(
+//   main_process: process.Subject(String),
+//   engine: process.Subject(EngineMessage),
+//   num_clients: Int,
+// ) {
+//   io.println(
+//     "Starting Reddit simulation with "
+//     <> int.to_string(num_clients)
+//     <> " clients",
+//   )
+//   let assert Ok(_simulator) =
+//     simulator.start_simulator(main_process, engine, num_clients)
+//   let _response = process.receive_forever(main_process)
+//   Nil
+// }

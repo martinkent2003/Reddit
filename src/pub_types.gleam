@@ -1,4 +1,3 @@
-import mist
 import gleam/dict.{type Dict}
 import gleam/erlang/process.{type Subject}
 
@@ -76,7 +75,6 @@ pub type ClientMessage {
   //these two are actually used only in the API router ===
   Nack(String)
   Ack(String)
-  ListAck(messages: List(String))
   //======================================================
   DirectMessageInbox(messages: Dict(String, DirectMessage))
   ClientJoinSubreddit(List(String))
